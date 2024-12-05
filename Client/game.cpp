@@ -164,7 +164,7 @@ void game::register_user() {
         QMessageBox::critical(NULL, "Error", "Log In timeout!");
         exitMesg:
         Mesg=cJSON_CreateObject();
-        cJSON_AddStringToObject(Mesg,"Type","Exit");
+        cJSON_AddStringToObject(Mesg,"Type","EXIT");
         JsonToSend = cJSON_Print(Mesg);
         cJSON_Delete(Mesg);
         send(socfd, JsonToSend, 512, NULL);
@@ -172,39 +172,6 @@ void game::register_user() {
 
     }
 }
-
-// void game::startVSblackAI()
-// {
-//     delete Siri;
-//     Siri =NULL;
-//     playerside = 0;
-//     onlineGame = false;
-//     gameScene->clear();
-//     playOffline();
-//     addToScene(turnDisplay);
-//     addToScene(check);
-//     placeTheBoard();
-//     placePieces();
-//     AIsSide = 1;
-//     Siri = new stupid_AI(AIsSide);
-// }
-
-// void game::startVSwhiteAI()
-// {
-//     delete Siri;
-//     Siri =NULL;
-//     playerside = 1;
-//     gameScene->clear();
-//     onlineGame = false;
-//     playOffline();
-//     addToScene(turnDisplay);
-//     addToScene(check);
-//     placeTheBoard();
-//     placePieces();
-//     AIsSide = 0;
-//     Siri = new stupid_AI(AIsSide);
-//     AIsMove();
-// }
 
 boardbox *game::getbox(int i, int j)
 {
@@ -255,27 +222,6 @@ void game::mainmenu()
     connect(registerButton, SIGNAL(clicked()) , this , SLOT(register_user()));
     addToScene(registerButton);
 
-    // button * playButton = new button("Play vs human");
-    // int pxPos = width()/2 - playButton->boundingRect().width()/2;
-    // int pyPos = 300;
-    // playButton->setPos(pxPos,pyPos);
-    // connect(playButton,SIGNAL(clicked()) , this , SLOT(start()));
-    // addToScene(playButton);
-
-    // button * BlackAIButton = new button("Play as White vs AI");
-    // int pxPos1 = width()/2 - BlackAIButton->boundingRect().width()/2;
-    // int pyPos1 = 375;
-    // BlackAIButton->setPos(pxPos1,pyPos1);
-    // connect(BlackAIButton,SIGNAL(clicked()) , this , SLOT(startVSblackAI()));
-    // addToScene(BlackAIButton);
-
-    // button * WhiteAIButton = new button("Play as Black vs AI");
-    // int wxPos1 = width()/2 - WhiteAIButton->boundingRect().width()/2;
-    // int wyPos1 = 450;
-    // WhiteAIButton->setPos(wxPos1,wyPos1);
-    // connect(WhiteAIButton,SIGNAL(clicked()) , this , SLOT(startVSwhiteAI()));
-    // addToScene(WhiteAIButton);
-
     button * Playonline = new button("Play Online");
     int oxPos1 = width()/2 - registerButton->boundingRect().width()/2;
     int oyPos1 = 300;
@@ -290,7 +236,6 @@ void game::mainmenu()
     quitButton->setPos(qxPos,qyPos);
     connect(quitButton, SIGNAL(clicked()),this,SLOT(close()));
     addToScene(quitButton);
-    //listG.append(quitButton);
 }
 
 void game::openGameLobby()
@@ -355,12 +300,7 @@ void game::mouseReleaseEvent(QMouseEvent *event)
         x = 7-x;
         y = 7-y;
     }
-//    qDebug()<<"x: "<<x<<" y: "<<y;
     finalY += 50;
-    //if (piece_to_placed && piece_to_placed->canmove(finalPos.x(),finalPos.y())){
-   //     piece_to_placed->setPos(finalPos);
-    //    piece_to_placed = NULL;
-    // } // A bad bug example here, if this function doest run, the piece is still not null.
 
     if (piece_to_placed)
     {
@@ -506,7 +446,6 @@ void game::mouseReleaseEvent(QMouseEvent *event)
                 {
                     int diediediedie = targetBox->getpiece()->die(playerside);
                     dieLogHis = true;
-                    //qDebug() << diediediedie;
                     if (diediediedie+1)
                     {
                         qDebug() << "Game over!";

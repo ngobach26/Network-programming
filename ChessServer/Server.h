@@ -20,26 +20,29 @@
 #include "sqlconnector.h"
 #include <mutex>
 
-//typedef std::vector<std::vector<unique_ptr>> BOARD;
+// typedef std::vector<std::vector<unique_ptr>> BOARD;
 
 using namespace std;
 
 typedef shared_ptr<Game> onlineGame;
 typedef shared_ptr<Player> player;
 
-struct Account {
+struct Account
+{
     QString ID;
     QString PassW;
     int elo;
     bool login = false;
     Account() {};
-    Account(QString id, QString pw, int e) {
+    Account(QString id, QString pw, int e)
+    {
         ID = id;
         PassW = pw;
         elo = e;
     }
 };
-enum class StatusCode {
+enum class StatusCode
+{
     // Successful
     OK = 200,
     CREATED = 201,
@@ -58,19 +61,20 @@ enum class StatusCode {
 class Server
 {
 public:
-	Server(int PORT, bool BroadcastPublically = false);
-	bool ListenForNewConnection();
+    Server(int PORT, bool BroadcastPublically = false);
+    bool ListenForNewConnection();
 
 private:
-	bool SendString(int ID, string & _string);
-	bool GetString(int ID, string & _string);
-	void sendMessToClients(string Message);
-	bool Processinfo(int ID);
-	bool CreateGameList(string & _string);
-    bool sendSystemInfo(int ID, string InfoType, string addKey="", string addValue="");
-    bool sendResponse(int ID, string type, StatusCode status, 
-                  const std::vector<string>& addKeys = {}, 
-                  const std::vector<string>& addValues = {});
+    bool SendString(int ID, string &_string);
+    bool GetString(int ID, string &_string);
+    void sendMessToClients(string Message);
+    bool Processinfo(int ID);
+    bool CreateGameList(string &_string);
+    bool sendSystemInfo(int ID, string InfoType, string addKey = "", string addValue = "");
+    bool systemSend(int ID, string InfoType, string addKey = "", string addValue = "");
+    bool sendResponse(int ID, string type, StatusCode status,
+                      string addKeys = "",
+                      string addValues = "");
     bool sendGameList(int ID); // if ID <0 ,means send gamelist to all clients
     void deleteGame(int ID);
 
@@ -78,27 +82,27 @@ private:
     void GetAllAccounts();
     bool Signup(QString username, QString password, int elo);
     int NameToElo(string);
-    int CalculateElo(int playerA,int playerB, float result);
+    int CalculateElo(int playerA, int playerB, float result);
     void UpdateElo(string, int);
     QString GetTopRanking();
 
 private:
-	//-------------------------------------------
-	// online variables:
-	//-------------------------------------------
+    //-------------------------------------------
+    // online variables:
+    //-------------------------------------------
     unordered_map<int, int> Connections;
-	//SOCKET Connections[512];
-	int TotalConnections = 0;
-	int allID = 0;
-    struct sockaddr_in servaddr;              //Address that we will bind our listening socket to
+    // SOCKET Connections[512];
+    int TotalConnections = 0;
+    int allID = 0;
+    struct sockaddr_in servaddr; // Address that we will bind our listening socket to
     unsigned int addrlen = sizeof(servaddr);
     int sListen;
-	//---------------------------------------
-	//Logic variables:
-	//----------------------------------------
-	int GameNum = 0;
-	unordered_map<int, onlineGame> GameList;
-	unordered_map<int, player> PlayerList;
+    //---------------------------------------
+    // Logic variables:
+    //----------------------------------------
+    int GameNum = 0;
+    unordered_map<int, onlineGame> GameList;
+    unordered_map<int, player> PlayerList;
     unordered_map<int, QString> OnlineUserList;
     std::thread threadList[512];
     QVector<Account> accList;
@@ -106,4 +110,4 @@ private:
     std::mutex mutexLock;
 };
 
-static Server * serverptr; 
+static Server *serverptr;

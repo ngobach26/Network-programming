@@ -8,6 +8,7 @@
 
 #include <mutex>
 #include "game.h"
+#include <iostream>
 
 #define MAXSIZE 512
 
@@ -134,21 +135,10 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     connect(createRoomBtn, SIGNAL(clicked()), this, SLOT(CreateAGameRoom()));
     OnlineScene->addItem(createRoomBtn);
 
-    showChatBtn = new button("Show / Hide Chat");
-    showChatBtn->setPos(700, 750);
-    connect(showChatBtn, SIGNAL(clicked()), this, SLOT(ShowChatRoom()));
-    OnlineScene->addItem(showChatBtn);
-
-    // refreshBtn = new button("Refresh Scene");
-    // refreshBtn->setPos(1000,750);
-    // connect(refreshBtn,SIGNAL(clicked()) , this , SLOT(Refresh()));
-    // OnlineScene->addItem(refreshBtn);
-
     OnlineScene->addItem(createRankingWidget());
 
     hostWindow();
     LobbySUI();
-    chRoom->show();
 }
 
 gameLobby::~gameLobby()
@@ -164,7 +154,7 @@ void gameLobby::getTopRanking()
 {
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
-    cJSON_AddStringToObject(Mesg, "Type", "GetTopRanking");
+    cJSON_AddStringToObject(Mesg, "Type", "GET_TOP_RANKING");
     char *JsonToSend = cJSON_Print(Mesg);
     qDebug() << strlen(JsonToSend);
     cJSON_Delete(Mesg);
@@ -244,7 +234,7 @@ bool gameLobby::requestLogIn(QString id, QString pw)
                 status = json_status->valuestring;
             }
 
-            if (type == "LOGIN_RES" && status == "200")
+            if (type == "LOGIN_RES" && status == statusToString(StatusCode::OK))
             {
                 json_elo = cJSON_GetObjectItem(json, "elo");
                 std::string tmp = json_elo->valuestring;
@@ -253,7 +243,7 @@ bool gameLobby::requestLogIn(QString id, QString pw)
                 return true;
             }
             cJSON_Delete(json);
-            if (status == "400")
+            if (status == statusToString(StatusCode::BAD_REQUEST))
                 QMessageBox::critical(NULL, "Error", "Failed to Log In!\nIncorrect ID or password");
             else
                 QMessageBox::critical(NULL, "Error", "Failed to Log In!\nAccount currently in use!");
@@ -372,7 +362,7 @@ void gameLobby::CancelHost()
     cJSON *Mesg;
     // if !Mesg
     Mesg = cJSON_CreateObject();
-    cJSON_AddStringToObject(Mesg, "Type", "CancelHost");
+    cJSON_AddStringToObject(Mesg, "Type", "CANCEL_HOST");
     char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
     cJSON_Delete(Mesg);
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL))
@@ -389,7 +379,7 @@ void gameLobby::GetOnlineUser()
 {
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
-    cJSON_AddStringToObject(Mesg, "Type", "GetOnlineUsers");
+    cJSON_AddStringToObject(Mesg, "Type", "GET_ONLINE_USERS");
     char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
     cJSON_Delete(Mesg);
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) <= 0)
@@ -424,7 +414,7 @@ bool gameLobby::backToLobby()
 {
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
-    cJSON_AddStringToObject(Mesg, "Type", "BackToLobby");
+    cJSON_AddStringToObject(Mesg, "Type", "BACK_TO_LOBBY");
     char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
     cJSON_Delete(Mesg);
     int RetnCheck = send(Connection, JsonToSend, strlen(JsonToSend), NULL);
@@ -536,12 +526,13 @@ bool gameLobby::GetString()
             Move = NULL;
         }
     }
-    else if (type == "OnlineUsersList")
+    else if (type == "GET_ONLINE_USERS_RES")
     {
         onlineUserList->clear();
-        cJSON *System_Info;
-        System_Info = cJSON_GetObjectItem(json, "Response");
-        QStringList onlineStr = QString::fromStdString(System_Info->valuestring).split(",");
+        cJSON *Data;
+        Data = cJSON_GetObjectItem(json, "Data");
+        QStringList onlineStr = QString::fromStdString(Data->valuestring).split(",");
+        qDebug() << "Online Users:" << onlineStr;
         for (auto s : onlineStr)
         {
             QStandardItem *item = new QStandardItem(s);
@@ -565,30 +556,18 @@ bool gameLobby::GetString()
         // TO DO:
         // waiting for others joing
     }
-    else if (type == "System")
+    else if (type == "JOIN_ROOM_RES")
     {
-        cJSON *System_Info;
-        System_Info = cJSON_GetObjectItem(json, "System_Info");
-        std::string systemInfo = System_Info->valuestring;
-        qDebug() << buffer;
-        if (systemInfo == "SomeoneJoinSuccessfully")
+        cJSON *Status;
+        Status = cJSON_GetObjectItem(json, "Status");
+        std::string status = Status->valuestring;
+        if (status == statusToString(StatusCode::CONFLICT))
         {
-            // signal
-            emit ShowGame();
-        }
-        else if (systemInfo == "HostStartPlaying")
-        {
-            yourSide = 0;
-            inRooms = true;
             clientptr->waiting = false;
-            // signal
-            cJSON *Name_Info;
-            Name_Info = cJSON_GetObjectItem(json, "Name_Info");
-            QString nameInfo = Name_Info->valuestring;
-            emit PlayWhite(id_id + "#" + QString::number(id_elo), nameInfo);
+            emit Full();
+            // when you are join a room, someone join it before you
         }
-        // server should send JoinRoom first then send SomeoneJoining
-        else if (systemInfo == "JoinRoom")
+        else if (status == statusToString(StatusCode::OK))
         {
             // this join room means you join the room successfully
             yourSide = 1;
@@ -602,7 +581,31 @@ bool gameLobby::GetString()
             emit PlayBlack(nameInfo, id_id + "#" + QString::number(id_elo));
             emit ShowGame();
         }
-        else if (systemInfo == "PlayAgain")
+    }
+    else if (type == "SEND_OPPONENT_JOINED")
+    {
+        yourSide = 0;
+        inRooms = true;
+        clientptr->waiting = false;
+        // signal
+        cJSON *Name_Info;
+        Name_Info = cJSON_GetObjectItem(json, "Name_Info");
+        QString nameInfo = Name_Info->valuestring;
+        emit PlayWhite(id_id + "#" + QString::number(id_elo), nameInfo);
+        emit ShowGame();
+    }
+    else if (type == "SEND_OPPONENT_LEAVED")
+    {
+        emit someoneLeave();
+    }
+    else if (type == "System")
+    {
+        cJSON *System_Info;
+        System_Info = cJSON_GetObjectItem(json, "System_Info");
+        std::string systemInfo = System_Info->valuestring;
+        qDebug() << buffer;
+        // server should send JoinRoom first then send SomeoneJoining
+        if (systemInfo == "PlayAgain")
         {
             if (yourSide == 1) // you are playing black
                 emit PlayBlackAgain();
@@ -620,31 +623,21 @@ bool gameLobby::GetString()
             // You need use go back to the lobby here;
             emit someoneLeave();
         }
-        else if (systemInfo == "RoomFull")
-        {
-            clientptr->waiting = false;
-            emit Full();
-            // when you are join a room, someone join it before you
-        }
         else if (systemInfo == "List_Full")
         {
             clientptr->waiting = false;
             emit ListFull();
-        }
-        else if (systemInfo == "ReturnTolobby")
-        {
-            emit someoneLeave();
         }
         cJSON_Delete(json);
 
         // when leave room, you need to reset yourSide = -1, inRooms = false, and hide game again.
         //  and clientptr->host = false;!!!
     }
-    else if (type == "AskDraw")
+    else if (type == "ASK_DRAW")
     {
         emit askDraw();
     }
-    else if (type == "Draw")
+    else if (type == "DRAW")
     {
         cJSON *json_result;
         json_result = cJSON_GetObjectItem(json, "Confirm");
@@ -653,7 +646,7 @@ bool gameLobby::GetString()
             emit Draw();
         cJSON_Delete(json);
     }
-    else if (type == "GetTopRanking")
+    else if (type == "GET_TOP_RANKING_RES")
     {
         cJSON *System_Info;
         System_Info = cJSON_GetObjectItem(json, "Response");
@@ -825,7 +818,7 @@ void gameLobby::exitLobby()
 {
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
-    cJSON_AddStringToObject(Mesg, "Type", "Exit");
+    cJSON_AddStringToObject(Mesg, "Type", "EXIT");
     char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
     cJSON_Delete(Mesg);
     send(Connection, JsonToSend, strlen(JsonToSend), NULL);
@@ -922,7 +915,7 @@ void gameLobby::I_wannaDraw()
 {
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
-    cJSON_AddStringToObject(Mesg, "Type", "AskDraw");
+    cJSON_AddStringToObject(Mesg, "Type", "ASK_DRAW");
     char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
     cJSON_Delete(Mesg);
     qDebug() << JsonToSend;
@@ -944,4 +937,31 @@ void gameLobby::sendDraw(int reply)
     qDebug() << JsonToSend;
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL))
         emit Draw();
+}
+
+std::string statusToString(StatusCode code)
+{
+    switch (code)
+    {
+    case StatusCode::OK:
+        return "200";
+    case StatusCode::CREATED:
+        return "201";
+    case StatusCode::BAD_REQUEST:
+        return "400";
+    case StatusCode::UNAUTHORIZED:
+        return "401";
+    case StatusCode::FORBIDDEN:
+        return "403";
+    case StatusCode::NOT_FOUND:
+        return "404";
+    case StatusCode::CONFLICT:
+        return "409";
+    case StatusCode::SERVER_ERROR:
+        return "500";
+    case StatusCode::SERVICE_UNAVAIABLE:
+        return "503";
+    default:
+        return "Unknown Status";
+    }
 }
