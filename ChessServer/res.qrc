@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>accs.txt</file>
+    </qresource>
+</RCC>
