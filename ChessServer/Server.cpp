@@ -239,20 +239,17 @@ bool Server::Processinfo(int ID)
 
             if (userExists)
             {
-                // sendSystemInfo(ID, "SignUp_FAILED_UserExists");
                 sendResponse(ID, "REGISTRATION_RES", StatusCode::CONFLICT);
             }
             else
             {
                 if (Signup(reg_ID, reg_PW, reg_ELO))
                 {
-                    // sendSystemInfo(ID, "SignUp_SUCCESS");
                     sendResponse(ID, "REGISTRATION_RES", StatusCode::OK);
                     accList.push_back(Account(reg_ID, reg_PW, reg_ELO));
                 }
                 else
                 {
-                    // sendSystemInfo(ID, "REGISTRATION_RES");
                     sendResponse(ID, "REGISTRATION_RES", StatusCode::SERVER_ERROR);
                 }
             }
@@ -285,15 +282,12 @@ bool Server::Processinfo(int ID)
             if (flag > -1)
             {
                 sendResponse(ID, "LOGIN_RES", StatusCode::OK, "elo", std::to_string(accList[flag].elo));
-                // string MOTD = "MOTD: Welcome! This is the message of the day!.";
-                // SendString(ID, MOTD);
                 sendGameList(ID);
                 OnlineUserList[ID] = user_UN;
             }
             else
             {
                 if (!isLogin)
-                    // sendSystemInfo(ID, "LogIn_FAILED_ID_PW");
                     sendResponse(ID, "LOGIN_RES", StatusCode::BAD_REQUEST);
                 else
                     sendResponse(ID, "LOGIN_RES", StatusCode::CONFLICT); // tai khoan da duoc dang nhap
@@ -304,7 +298,6 @@ bool Server::Processinfo(int ID)
             if (GameList.size() >= 6)
             {
                 cJSON_Delete(json);
-                // sendSystemInfo(ID, "List_Full");
                 sendResponse(ID, "CREATEROOM_RES", StatusCode::SERVICE_UNAVAIABLE);
                 return true;
             }
@@ -318,7 +311,6 @@ bool Server::Processinfo(int ID)
                 PlayerList[ID]->hostGame(gameID, newGame);                       // cho nguoi choi vao game
                 newGame->hostIs(PlayerList[ID]);                                 // host la nguoi choi vua tao game
                 GameList.insert(pair<int, onlineGame>(gameID, newGame));
-                // sendSystemInfo(ID, "WaitingForSomeoneJoining");
                 sendResponse(ID, "CREATEROOM_RES", StatusCode::OK);
                 sendGameList(-1);
             }
@@ -342,7 +334,7 @@ bool Server::Processinfo(int ID)
                 { // neu doi thu trong Game
                     if (GameList[HID]->can_Play_again())
                     { // kiem tra xem co the choi lai khong
-                        if (sendSystemInfo(ID, "PlayAgain") && sendSystemInfo(anotherPlayer, "PlayAgain"))
+                        if (systemSend(ID, "SEND_PLAY_AGAIN") && systemSend(anotherPlayer, "SEND_PLAY_AGAIN"))
                             GameList[HID]->reset_play_again();
                     }
                 }
@@ -372,13 +364,8 @@ bool Server::Processinfo(int ID)
             string p2name = Username->valuestring;
             cout << "got Join room request from ID: " << Games_ID->valueint << endl;
             log("got Join room request from ID: " + std::to_string(Games_ID->valueint));
-            // TO DO:
-            // if game is nolonger exist
-            // send message RoomClose
-            // return
             if (GameList[gameID]->isFull())
             {
-                // sendSystemInfo(ID, "RoomFull");
                 sendResponse(ID, "JOIN_ROOM_RES", StatusCode::CONFLICT);
                 cJSON_Delete(json);
                 return true;
@@ -519,7 +506,7 @@ bool Server::Processinfo(int ID)
                 int anotherPlayer = GameList[HID]->anotherPlayerID(ID);
                 if (anotherPlayer >= 0)
                 {
-                    SendString(anotherPlayer, Message);
+                    systemSend(anotherPlayer, Message);
                 }
             }
         }
@@ -745,7 +732,7 @@ void Server::ClientHandlerThread(int ID) // ID = the index in the SOCKET Connect
         int anotherPlayer = serverptr->GameList[HID]->anotherPlayerID(ID);
         if (anotherPlayer >= 0 && serverptr->PlayerList[anotherPlayer])
         {
-            serverptr->sendSystemInfo(anotherPlayer, "LostConnection");
+            serverptr->systemSend(anotherPlayer, "LOST_CONNECTION");
             serverptr->PlayerList[anotherPlayer]->returnToLobby();
         }
         serverptr->GameList.erase(HID);

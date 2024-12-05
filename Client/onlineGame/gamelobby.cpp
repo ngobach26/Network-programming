@@ -598,44 +598,25 @@ bool gameLobby::GetString()
     {
         emit someoneLeave();
     }
-    else if (type == "System")
+    else if (type == "LOST_CONNECTION")
     {
-        cJSON *System_Info;
-        System_Info = cJSON_GetObjectItem(json, "System_Info");
-        std::string systemInfo = System_Info->valuestring;
-        qDebug() << buffer;
-        // server should send JoinRoom first then send SomeoneJoining
-        if (systemInfo == "PlayAgain")
-        {
-            if (yourSide == 1) // you are playing black
-                emit PlayBlackAgain();
-            else
-                emit PlayWhiteAgain();
-        }
-        else if (systemInfo == "RoomClose")
-        {
-            emit RoomClose();
-            // this means this room is no longer exist
-        }
-        else if (systemInfo == "LostConnection")
-        {
-            // should be the host lost or\ the guest lost
-            // You need use go back to the lobby here;
-            emit someoneLeave();
-        }
-        else if (systemInfo == "List_Full")
-        {
-            clientptr->waiting = false;
-            emit ListFull();
-        }
+        // should be the host lost or\ the guest lost
+        // You need use go back to the lobby here;
+        emit someoneLeave();
         cJSON_Delete(json);
-
-        // when leave room, you need to reset yourSide = -1, inRooms = false, and hide game again.
-        //  and clientptr->host = false;!!!
+    }
+    if (type == "SEND_PLAY_AGAIN")
+    {
+        if (yourSide == 1) // you are playing black
+            emit PlayBlackAgain();
+        else
+            emit PlayWhiteAgain();
+        cJSON_Delete(json);
     }
     else if (type == "ASK_DRAW")
     {
         emit askDraw();
+        cJSON_Delete(json);
     }
     else if (type == "DRAW")
     {
