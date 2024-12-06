@@ -136,11 +136,18 @@ void Server::GetAllAccounts()
 
 bool Server::SendString(int ID, string &_string)
 {
+    // Log the message being sent to the terminal
+    std::cout << "Sending to client ID " << ID << ": " << _string << std::endl;
+
     int RetnCheck = send(Connections[ID], _string.c_str(), 512, 0); // Send string buffer
     if (RetnCheck < 0)                                              // If failed to send string buffer
+    {
+        std::cerr << "Failed to send message to client ID " << ID << std::endl;
         return false;                                               // Return false: Failed to send string buffer
+    }
     return true;                                                    // Return true: string successfully sent
 }
+
 
 bool Server::GetString(int ID, string &_string)
 {
@@ -656,9 +663,9 @@ bool Server::systemSend(int ID, string type, string addKey, string addValue)
 
     char *JsonToSend = cJSON_Print(json);
     cJSON_Delete(json);
-    cout << "send:" << endl
-         << JsonToSend << " To: " << ID << endl;
-    log("send:" + std::string(JsonToSend) + " To: " + std::to_string(ID));
+    // cout << "send:" << endl
+    //      << JsonToSend << " To: " << ID << endl;
+    // log("send:" + std::string(JsonToSend) + " To: " + std::to_string(ID));
     string Send(JsonToSend);
     return SendString(ID, Send);
 }
@@ -680,9 +687,9 @@ bool Server::sendResponse(int ID, string type, StatusCode status, string addKey,
 
     char *JsonToSend = cJSON_Print(json);
     cJSON_Delete(json);
-    cout << "send:" << endl
-         << JsonToSend << " To: " << ID << endl;
-    log("send:" + std::string(JsonToSend) + " To: " + std::to_string(ID));
+    // cout << "send:" << endl
+    //      << JsonToSend << " To: " << ID << endl;
+    // log("send:" + std::string(JsonToSend) + " To: " + std::to_string(ID));
     string Send(JsonToSend);
     return SendString(ID, Send);
 }

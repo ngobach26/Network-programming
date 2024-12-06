@@ -40,7 +40,7 @@ enum class StatusCode
     SERVER_ERROR = 500,
     SERVICE_UNAVAIABLE = 503
 };
-
+std::string statusToString(StatusCode code);
 class gameLobby : public QGraphicsView
 {
     Q_OBJECT
