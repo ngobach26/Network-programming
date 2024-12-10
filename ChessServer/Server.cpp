@@ -513,7 +513,7 @@ bool Server::Processinfo(int ID)
                 int anotherPlayer = GameList[HID]->anotherPlayerID(ID);
                 if (anotherPlayer >= 0)
                 {
-                    systemSend(anotherPlayer, Message);
+                    SendString(anotherPlayer, Message);
                 }
             }
         }

@@ -615,6 +615,7 @@ bool gameLobby::GetString()
     }
     else if (type == "ASK_DRAW")
     {
+        std::cout << type;
         emit askDraw();
         cJSON_Delete(json);
     }
@@ -909,7 +910,7 @@ void gameLobby::sendDraw(int reply)
 {
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
-    cJSON_AddStringToObject(Mesg, "Type", "Draw");
+    cJSON_AddStringToObject(Mesg, "Type", "DRAW");
 
     cJSON_AddNumberToObject(Mesg, "Confirm", reply);
 
