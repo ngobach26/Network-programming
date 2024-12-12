@@ -66,6 +66,8 @@ public:
     int id_elo;
     int recent_elo = 0;
     void sendDraw(int);
+    bool isMatchingRandom = false; // Tracks if the user is in random matchmaking
+    int matchRoomID = -1;          // The Room ID assigned for the random match
 signals:
     void updateRooms(cJSON *Lists);
     void socketClosed();
@@ -126,6 +128,7 @@ private:
     button* getOnUserBtn;
     button* createRoomBtn;
     button* showChatBtn;
+    button* matchRandomBtn;
     //void CancelWaiting(); //need to be done
         //void sendMessage(string message);
 
@@ -145,10 +148,14 @@ public slots:
     void CreateAGameRoom();
     void ShowChatRoom();
     void getTopRanking();
+    void MatchRandomPlayer();
+    void SendMatchRandomRequest();
+    void SendCancelRandomMatchRequest();
+    void HandleRandomMatchResponse(cJSON *response);
     QGraphicsProxyWidget *createRankingWidget();
     void EndGame(int);
     void I_wannaDraw();
-
+    
 };
 
 

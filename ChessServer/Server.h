@@ -19,6 +19,7 @@
 #include <QVector>
 #include "sqlconnector.h"
 #include <mutex>
+#include <queue>
 
 // typedef std::vector<std::vector<unique_ptr>> BOARD;
 
@@ -108,6 +109,9 @@ private:
     QVector<Account> accList;
     QString accsFilePath;
     std::mutex mutexLock;
+    std::queue<int> randomMatchQueue;
+    std::mutex matchQueueMutex;
+
 };
 
 static Server *serverptr;

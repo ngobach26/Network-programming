@@ -137,6 +137,11 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
 
     OnlineScene->addItem(createRankingWidget());
 
+    matchRandomBtn = new button("Matching by Random Player");
+    matchRandomBtn->setPos(650, 750);
+    // connect(matchRandomBtn, SIGNAL(clicked()), this, SLOT());
+    OnlineScene->addItem(matchRandomBtn);
+
     hostWindow();
     LobbySUI();
 }
@@ -920,6 +925,89 @@ void gameLobby::sendDraw(int reply)
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL))
         emit Draw();
 }
+
+void gameLobby::MatchRandomPlayer() {
+    if (isMatchingRandom) return;
+
+    isMatchingRandom = true;
+
+    // Show waiting dialog
+    QDialog waitingDialog(this);
+    waitingDialog.setWindowTitle("Matching Random Player");
+    QLabel *waitingLabel = new QLabel("Waiting for an opponent...", &waitingDialog);
+    QPushButton *cancelButton = new QPushButton("Cancel", &waitingDialog);
+
+    QVBoxLayout *layout = new QVBoxLayout;
+    layout->addWidget(waitingLabel);
+    layout->addWidget(cancelButton);
+    waitingDialog.setLayout(layout);
+
+    // Connect Cancel button
+    connect(cancelButton, &QPushButton::clicked, [&]() {
+        isMatchingRandom = false;
+        waitingDialog.close();
+        SendCancelRandomMatchRequest();
+    });
+
+    waitingDialog.show();
+
+    // Send request to the server
+    SendMatchRandomRequest();
+}
+
+void gameLobby::SendMatchRandomRequest() {
+    // Create JSON message for match random request
+    cJSON *request = cJSON_CreateObject();
+    cJSON_AddStringToObject(request, "Type", "MATCH_RANDOM");
+    cJSON_AddStringToObject(request, "UN", id.toStdString().c_str()); // Send Username
+
+    // Send to server
+    std::string message = cJSON_Print(request);
+    sendMessage(message, id_id.toStdString());
+    cJSON_Delete(request);
+}
+
+void gameLobby::SendCancelRandomMatchRequest() {
+    // Create JSON message for cancel random request
+    cJSON *request = cJSON_CreateObject();
+    cJSON_AddStringToObject(request, "Type", "CANCEL_RANDOM_MATCH");
+    cJSON_AddStringToObject(request, "UN", id.toStdString().c_str()); // Send Username
+
+    // Send to server
+    std::string message = cJSON_Print(request);
+    sendMessage(message, id_id.toStdString());
+    cJSON_Delete(request);
+}
+
+void gameLobby::HandleRandomMatchResponse(cJSON *response) {
+    std::string type = cJSON_GetObjectItem(response, "Type")->valuestring;
+
+    if (type == "MATCH_RANDOM_RES") {
+        int statusCode = cJSON_GetObjectItem(response, "Status")->valueint;
+        if (statusCode == 200) {
+            qDebug() << "Random match request accepted.";
+        } else {
+            qDebug() << "Failed to start random match.";
+        }
+    } else if (type == "CANCEL_RANDOM_MATCH") {
+        int statusCode = cJSON_GetObjectItem(response, "Status")->valueint;
+        if (statusCode == 200) {
+            qDebug() << "Random match request canceled.";
+        } else {
+            qDebug() << "Failed to cancel random match.";
+        }
+    } else if (type == "RANDOM_MATCH_FOUND") {
+        int statusCode = cJSON_GetObjectItem(response, "Status")->valueint;
+        if (statusCode == 200) {
+            int roomID = cJSON_GetObjectItem(response, "RoomID")->valueint;
+            QString opponentName = cJSON_GetObjectItem(response, "UserUN")->valuestring;
+
+            // Redirect to game
+            emit PlayWhite(id_id, opponentName); // Adjust based on assigned player side
+        }
+    }
+}
+
 
 std::string statusToString(StatusCode code)
 {

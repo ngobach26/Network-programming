@@ -448,6 +448,47 @@ bool Server::Processinfo(int ID)
             }
             sendResponse(ID, "GET_ONLINE_USERS_RES", StatusCode::OK, "Data", res.c_str());
         }
+        else if (type == "MATCH_RANDOM") {
+            std::lock_guard<std::mutex> lock(matchQueueMutex);
+
+            if (!randomMatchQueue.empty()) {
+                // Match found
+                int opponentID = randomMatchQueue.front();
+                randomMatchQueue.pop();
+
+                int roomID = ++GameNum;
+                auto game = std::make_shared<Game>(roomID, opponentID, PlayerList[opponentID]->id);
+
+                GameList[roomID] = game;
+                PlayerList[ID]->JoininGame(roomID, game);
+                PlayerList[opponentID]->JoininGame(roomID, game);
+
+                sendResponse(ID, "RANDOM_MATCH_FOUND", StatusCode::OK, 
+                    "RoomID", std::to_string(roomID), "UserUN", PlayerList[opponentID]->id);
+                sendResponse(opponentID, "RANDOM_MATCH_FOUND", StatusCode::OK, 
+                    "RoomID", std::to_string(roomID), "UserUN", PlayerList[ID]->id);
+            } else {
+                // Add to queue
+                randomMatchQueue.push(ID);
+                sendResponse(ID, "MATCH_RANDOM_RES", StatusCode::OK);
+            }
+        } else if (type == "CANCEL_RANDOM_MATCH") {
+            std::lock_guard<std::mutex> lock(matchQueueMutex);
+
+            // Remove from queue
+            std::queue<int> tempQueue;
+            while (!randomMatchQueue.empty()) {
+                int currentID = randomMatchQueue.front();
+                randomMatchQueue.pop();
+
+                if (currentID != ID) {
+                    tempQueue.push(currentID);
+                }
+            }
+            randomMatchQueue.swap(tempQueue);
+
+            sendResponse(ID, "CANCEL_RANDOM_MATCH", StatusCode::OK);
+        }
         else if (type == "EXIT")
         {
             return false;
