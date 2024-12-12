@@ -143,11 +143,10 @@ bool Server::SendString(int ID, string &_string)
     if (RetnCheck < 0)                                              // If failed to send string buffer
     {
         std::cerr << "Failed to send message to client ID " << ID << std::endl;
-        return false;                                               // Return false: Failed to send string buffer
+        return false; // Return false: Failed to send string buffer
     }
-    return true;                                                    // Return true: string successfully sent
+    return true; // Return true: string successfully sent
 }
-
 
 bool Server::GetString(int ID, string &_string)
 {
@@ -361,6 +360,56 @@ bool Server::Processinfo(int ID)
                 }
             }
         }
+        else if (type == "INVITE")
+        {
+            cJSON *recipientJson = cJSON_GetObjectItem(json, "User");
+            QString recipientName = recipientJson->valuestring;
+            int senderID = ID;
+            QString senderName = OnlineUserList[senderID];
+
+            // Check if the sender is hosting a room
+            if (PlayerList[senderID]->isOnlyInRoom())
+            {
+                // Check if the recipient exists and is online
+                auto recipientIt = std::find_if(OnlineUserList.begin(), OnlineUserList.end(),
+                                                [&recipientName](const std::pair<int, QString> &pair)
+                                                {
+                                                    return pair.second == recipientName;
+                                                });
+
+                if (recipientIt != OnlineUserList.end())
+                {
+                    int recipientID = recipientIt->first;
+
+                    // Check if recipient is not in a game
+                    if (PlayerList[recipientID]->isFree())
+                    {
+                        // Send the invite to the recipient
+                        systemSend(
+                            recipientID, "INVITE_RECEIVED",
+                            "Data", senderName.toStdString() + "#" + std::to_string(PlayerList[senderID]->AreYouInGame()));
+
+                        // Optionally acknowledge the sender
+                        sendResponse(senderID, "INVITE_RES", StatusCode::OK);
+                    }
+                    else
+                    {
+                        // Recipient is busy
+                        sendResponse(senderID, "INVITE_RES", StatusCode::CONFLICT);
+                    }
+                }
+                else
+                {
+                    // Recipient not found
+                    sendResponse(senderID, "INVITE_RES", StatusCode::NOT_FOUND);
+                }
+            }
+            else
+            {
+                // Sender is not hosting a room
+                sendResponse(senderID, "INVITE_RES", StatusCode::FORBIDDEN);
+            }
+        }
         else if (type == "JOIN_ROOM")
         {
             cJSON *Games_ID;
@@ -455,7 +504,7 @@ bool Server::Processinfo(int ID)
         else if (type == "GET_TOP_RANKING")
         {
             QString res = GetTopRanking();
-            sendResponse(ID,"GET_TOP_RANKING_RES",StatusCode::OK,"Response",res.toStdString().c_str());
+            sendResponse(ID, "GET_TOP_RANKING_RES", StatusCode::OK, "Response", res.toStdString().c_str());
         }
         else if (type == "EndGame")
         {

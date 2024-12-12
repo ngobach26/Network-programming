@@ -43,6 +43,10 @@ public:
 	{
 		return GameID;
 	}
+	bool isOnlyInRoom()
+	{
+		return ishost && !ingame;
+	}
     bool ishost = false;
 private:
 	int id;

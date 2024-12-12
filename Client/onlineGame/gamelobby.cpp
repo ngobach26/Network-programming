@@ -40,8 +40,11 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     connect(this, SIGNAL(PlayBlackAgain()), Game, SLOT(playAsBlackOnline()));
     connect(this, SIGNAL(PlayWhiteAgain()), Game, SLOT(playAsWhiteOnline()));
     connect(this, SIGNAL(moveTo(onlineMove *)), Game, SLOT(receiveMove(onlineMove *)));
+    connect(this, &gameLobby::inviteReceived, this, &gameLobby::handleInvite);
     connect(this, SIGNAL(askDraw()), Game, SLOT(askDraw()));
     connect(this, SIGNAL(Draw()), Game, SLOT(Draw()));
+    connect(this, &gameLobby::updateOnlineUserList, this, &gameLobby::handleOnlineUserList, Qt::QueuedConnection);
+    connect(this, &gameLobby::inviteResponse, this, &gameLobby::onInviteResponse);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     //--------------------------------------------------------
@@ -117,7 +120,7 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     playButton->hide();
     OnlineScene->addItem(playButton);
     // online users:
-    QListView *listView = new QListView();
+    listView = new QListView(); // Initialize the listView member variable
     onlineUserList = new QStandardItemModel();
     listView->setModel(onlineUserList);
     QGraphicsProxyWidget *proxyWidget = new QGraphicsProxyWidget();
@@ -489,6 +492,8 @@ bool gameLobby::GetString()
     cJSON *json, *json_type;
     // if !json
     // if !json_type
+    QString receivedMessage = QString::fromUtf8(buffer);
+    qDebug() << "Received:" << receivedMessage;
     json = cJSON_Parse(buffer);
     json_type = cJSON_GetObjectItem(json, "Type");
     if (json_type == NULL)
@@ -529,16 +534,11 @@ bool gameLobby::GetString()
     else if (type == "GET_ONLINE_USERS_RES")
     {
         onlineUserList->clear();
-        cJSON *Data;
-        Data = cJSON_GetObjectItem(json, "Data");
+        cJSON *Data = cJSON_GetObjectItem(json, "Data");
         QStringList onlineStr = QString::fromStdString(Data->valuestring).split(",");
         qDebug() << "Online Users:" << onlineStr;
-        for (auto s : onlineStr)
-        {
-            QStandardItem *item = new QStandardItem(s);
-            item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-            onlineUserList->appendRow(item);
-        }
+
+        emit updateOnlineUserList(onlineStr); // Emit signal to update list
         cJSON_Delete(json);
     }
     else if (type == "Result")
@@ -593,6 +593,75 @@ bool gameLobby::GetString()
         QString nameInfo = Name_Info->valuestring;
         emit PlayWhite(id_id + "#" + QString::number(id_elo), nameInfo);
         emit ShowGame();
+    }
+    else if (type == "INVITE_RECEIVED")
+    {
+        cJSON *dataJson = cJSON_GetObjectItem(json, "Data");
+        if (!dataJson)
+        {
+            cJSON_Delete(json);
+            return true;
+        }
+
+        // Extract sender name and game ID from the "Data" field
+        QString data = QString::fromStdString(dataJson->valuestring);
+        QStringList parts = data.split("#");
+        if (parts.size() != 2)
+        {
+            cJSON_Delete(json);
+            return true;
+        }
+
+        QString fromUser = parts[0];
+        int gameID = parts[1].toInt();
+
+        // Emit the signal with both sender name and game ID
+        emit inviteReceived(fromUser, gameID);
+
+        cJSON_Delete(json);
+    }
+    else if (type == "INVITE_RES")
+    {
+        cJSON *Status;
+        Status = cJSON_GetObjectItem(json, "Status");
+        std::string status = Status->valuestring;
+        if (!Status)
+        {
+            cJSON_Delete(json);
+            return true;
+        }
+
+        if (status == statusToString(StatusCode::OK))
+        {
+            // Invite was sent successfully
+            qDebug() << "Invite sent successfully.";
+            emit inviteResponse("Invite sent successfully.", true);
+        }
+        else if (status == statusToString(StatusCode::CONFLICT))
+        {
+            qDebug() << "Recipient is currently busy.";
+            emit inviteResponse("Recipient is currently busy.", false);
+        }
+        else if (status == statusToString(StatusCode::NOT_FOUND))
+        {
+            // Recipient not found
+            qDebug() << "Recipient not found.";
+            emit inviteResponse("Recipient not found.", false);
+        }
+        else if (status == statusToString(StatusCode::FORBIDDEN))
+        {
+            // Sender is not hosting a room
+            qDebug() << "You must be hosting a room to send an invite.";
+            emit inviteResponse("You must be hosting a room to send an invite.", false);
+        }
+        else
+        {
+            // Unknown status
+            qDebug() << "Unexpected response status";
+            emit inviteResponse("Unexpected response from server.", false);
+        }
+
+        cJSON_Delete(json);
     }
     else if (type == "SEND_OPPONENT_LEAVED")
     {
@@ -796,6 +865,49 @@ void gameLobby::SendRequestForJoining(int ID)
     t2 = std::thread(WaitforResponseThread);
 }
 
+void gameLobby::sendInvite(const QString &username)
+{
+    static bool isInviteInProgress = false; // Prevent multiple invites simultaneously
+
+    if (isInviteInProgress)
+        return; // Avoid spamming invites
+    isInviteInProgress = true;
+    qDebug() << "Sending invite to user:" << username;
+
+    // Create JSON object for the invite message
+    cJSON *inviteMessage = cJSON_CreateObject();
+    cJSON_AddStringToObject(inviteMessage, "Type", "INVITE");
+    cJSON_AddStringToObject(inviteMessage, "User", username.toStdString().c_str());
+
+    // Convert JSON object to string
+    char *jsonToSend = cJSON_Print(inviteMessage);
+    cJSON_Delete(inviteMessage);
+
+    if (!jsonToSend)
+    {
+        qDebug() << "Failed to serialize JSON object to string.";
+        isInviteInProgress = false;
+        return;
+    }
+
+    // Send the message to the server
+    if (send(Connection, jsonToSend, strlen(jsonToSend), 0) == -1)
+    {
+        qDebug() << "Failed to send invite message.";
+    }
+    else
+    {
+        qDebug() << "Invite message sent to server successfully.";
+    }
+
+    // Free the dynamically allocated memory
+    free(jsonToSend);
+
+    // Reset the flag after 1 second
+    QTimer::singleShot(1000, this, [&]()
+                       { isInviteInProgress = false; });
+}
+
 void gameLobby::exitLobby()
 {
     cJSON *Mesg;
@@ -903,6 +1015,79 @@ void gameLobby::I_wannaDraw()
     qDebug() << JsonToSend;
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL))
     {
+    }
+}
+
+void gameLobby::handleInvite(const QString &fromUser, int gameID)
+{
+    QMessageBox msgBox;
+    msgBox.setWindowTitle("Game Invite");
+    msgBox.setText(fromUser + " has invited you to play a game. Game ID: " + QString::number(gameID));
+    QPushButton *acceptButton = msgBox.addButton("Accept", QMessageBox::AcceptRole);
+    QPushButton *declineButton = msgBox.addButton("Decline", QMessageBox::RejectRole);
+
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == acceptButton)
+    {
+        SendRequestForJoining(gameID);
+        qDebug() << "Invite accepted from " << fromUser << " for game ID " << gameID;
+    }
+    else if (msgBox.clickedButton() == declineButton)
+    {
+        // Send response back to the server for declining the invite
+        cJSON *response = cJSON_CreateObject();
+        cJSON_AddStringToObject(response, "Type", "INVITE_RESPONSE");
+        cJSON_AddStringToObject(response, "Response", "DECLINE");
+        cJSON_AddStringToObject(response, "FromUser", fromUser.toStdString().c_str());
+        cJSON_AddNumberToObject(response, "GameID", gameID);
+        char *jsonToSend = cJSON_Print(response);
+        send(Connection, jsonToSend, strlen(jsonToSend), 0);
+        cJSON_Delete(response);
+
+        qDebug() << "Invite declined from " << fromUser << " for game ID " << gameID;
+    }
+}
+
+void gameLobby::handleOnlineUserList(const QStringList &users)
+{
+    onlineUserList->clear();
+
+    for (const QString &username : users)
+    {
+        QWidget *userWidget = new QWidget();
+        QHBoxLayout *layout = new QHBoxLayout(userWidget);
+        layout->setContentsMargins(0, 0, 0, 0);
+
+        QLabel *userLabel = new QLabel(username);
+        layout->addWidget(userLabel);
+
+        // Only add the "Invite" button if the username is not the current user's ID
+        if (username != id_id)
+        {
+            QPushButton *inviteButton = new QPushButton("Invite");
+            layout->addWidget(inviteButton);
+
+            connect(inviteButton, &QPushButton::clicked, this, [this, username]()
+                    { sendInvite(username); });
+        }
+
+        QStandardItem *item = new QStandardItem();
+        onlineUserList->appendRow(item);
+        QModelIndex index = onlineUserList->indexFromItem(item);
+        listView->setIndexWidget(index, userWidget);
+    }
+}
+
+void gameLobby::onInviteResponse(const QString &message, bool success)
+{
+    if (success)
+    {
+        QMessageBox::information(this, "Invite Status", message);
+    }
+    else
+    {
+        QMessageBox::warning(this, "Invite Status", message);
     }
 }
 

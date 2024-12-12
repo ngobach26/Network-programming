@@ -9,6 +9,8 @@
 #include <QMutex>
 #include <QStandardItemModel>
 #include <cstring>
+#include <QListView>
+
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -83,7 +85,10 @@ signals:
     void ListFull();
     void Draw();
     void askDraw();
-
+    void sendInvite();
+    void updateOnlineUserList(const QStringList &users);
+    void inviteReceived(const QString &fromUser, int gameID);
+    void inviteResponse(const QString &message, bool success);
 
 
 protected:
@@ -91,6 +96,7 @@ protected:
 
 private:
     QStringList rankingList;
+    QListView *listView;
     int prot = 1111;
     static void ClientThread();
     static void WaitforResponseThread();
@@ -108,7 +114,8 @@ private:
     bool GetString();
     Chatroom* chRoom;
     void SendRequestForJoining(int ID);
-    QList <ChessRoom*> chessroomS;
+    void sendInvite(const QString &username);
+    QList<ChessRoom *> chessroomS;
     void exitLobby();
     void showRooms();
     void LobbySUI();
@@ -148,7 +155,9 @@ public slots:
     QGraphicsProxyWidget *createRankingWidget();
     void EndGame(int);
     void I_wannaDraw();
-
+    void handleOnlineUserList(const QStringList &users);
+    void handleInvite(const QString &fromUser, int gameID);
+    void onInviteResponse(const QString &message, bool success);
 };
 
 
