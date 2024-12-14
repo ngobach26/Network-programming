@@ -48,6 +48,11 @@ public:
 		return ishost && !ingame;
 	}
     bool ishost = false;
+	bool isWaitingForRandomMatch = false;
+
+	bool isWaitingForMatch() const { return isWaitingForRandomMatch; }
+	void setWaitingForMatch(bool waiting) { isWaitingForRandomMatch = waiting; }
+
 private:
 	int id;
 	int GameID = -1;

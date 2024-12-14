@@ -9,6 +9,7 @@
 #include <mutex>
 #include "game.h"
 #include <iostream>
+#include <QTimer>
 
 #define MAXSIZE 512
 
@@ -138,6 +139,11 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     connect(createRoomBtn, SIGNAL(clicked()), this, SLOT(CreateAGameRoom()));
     OnlineScene->addItem(createRoomBtn);
 
+    matchRandomBtn = new button("Matching by Random Player");
+    matchRandomBtn->setPos(650, 750);
+    connect(matchRandomBtn, SIGNAL(clicked()), this, SLOT(MatchRandomPlayer()));
+    OnlineScene->addItem(matchRandomBtn);
+
     OnlineScene->addItem(createRankingWidget());
 
     hostWindow();
@@ -147,10 +153,32 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
 gameLobby::~gameLobby()
 {
     gameLobby::is_opened = false;
-    if (t1.joinable())
+    
+    // Clean up matching dialog
+    if (matchingDialog) {
+        matchingDialog->hide();
+        matchingDialog->deleteLater();
+        matchingDialog = nullptr;
+    }
+    
+    // Clean up threads
+    if (t1.joinable()) {
         t1.join();
-    if (t2.joinable())
+    }
+    if (t2.joinable()) {
         t2.join();
+    }
+    
+    // Close connection if still open
+    if (Connection != -1) {
+        ::close(Connection);
+        Connection = -1;
+    }
+
+    if (matchingDialog) {
+        matchingDialog->deleteLater();
+        matchingDialog = nullptr;
+    }
 }
 
 void gameLobby::getTopRanking()
@@ -438,9 +466,15 @@ void gameLobby::closeEvent(QCloseEvent *event)
 {
     gameLobby::is_opened = false;
     if (inRooms)
-        Game->mainmenu();
+        // Game->mainmenu();
+        Leave();  
     exitLobby();
     chRoom->close();
+    if (matchingDialog) {
+        matchingDialog->hide();
+        matchingDialog->deleteLater();
+        matchingDialog = nullptr;
+    }
     event->accept();
 }
 
@@ -665,13 +699,40 @@ bool gameLobby::GetString()
     }
     else if (type == "SEND_OPPONENT_LEAVED")
     {
+        inRooms = false;
+        waiting = false;
+        host = false;
+        yourSide = -1;
+        
+        // Use QTimer to delay the signal emission to ensure proper cleanup
+        QTimer::singleShot(0, this, [this]() {
         emit someoneLeave();
+        });
+        
+        cJSON_Delete(json);
     }
     else if (type == "LOST_CONNECTION")
     {
         // should be the host lost or\ the guest lost
         // You need use go back to the lobby here;
-        emit someoneLeave();
+        // emit someoneLeave();
+        inRooms = false;
+        waiting = false;
+        host = false;
+        yourSide = -1;
+        
+        // Safely clean up matching dialog if it exists
+        if (matchingDialog) {
+            matchingDialog->hide();
+            matchingDialog->deleteLater();
+            matchingDialog = nullptr;
+        }
+        
+        // Use QTimer to delay the signal emission to ensure proper cleanup
+        QTimer::singleShot(0, this, [this]() {
+            emit someoneLeave();
+        });
+        
         cJSON_Delete(json);
     }
     if (type == "SEND_PLAY_AGAIN")
@@ -702,6 +763,46 @@ bool gameLobby::GetString()
         cJSON *System_Info;
         System_Info = cJSON_GetObjectItem(json, "Response");
         rankingList = QString::fromStdString(System_Info->valuestring).split(",");
+        cJSON_Delete(json);
+    }
+    else if (type == "RANDOM_MATCH_FOUND")
+    {
+        waiting = false;
+    
+        // Safely clean up matching dialog
+        if (matchingDialog) {
+            matchingDialog->hide(); // Hide before delete to prevent visual artifacts
+            matchingDialog->deleteLater(); // Use deleteLater instead of direct delete
+            matchingDialog = nullptr;
+        }
+        cJSON* opponent = cJSON_GetObjectItem(json, "Opponent");
+        cJSON* side = cJSON_GetObjectItem(json, "Side");
+        
+        if (!opponent || !side) {
+            qDebug() << "Invalid match data received";
+            cJSON_Delete(json);
+            return true;
+        }
+
+        QString opponentName = QString(opponent->valuestring);
+        QString sideStr = QString(side->valuestring);
+
+        // Set game state before emitting signals
+        inRooms = true;
+        
+        // Initialize game with proper state
+        if (sideStr == "white") {
+            yourSide = 0;
+            emit PlayWhite(id_id + "#" + QString::number(id_elo), opponentName);
+        } else {
+            yourSide = 1;
+            // emit PlayBlack(id_id + "#" + QString::number(id_elo), opponentName);
+            emit PlayBlack(opponentName, id_id + "#" + QString::number(id_elo));
+        }
+        
+        // QTimer::singleShot(10, [this]() {
+        emit ShowGame();
+        // });
         cJSON_Delete(json);
     }
     return true;
@@ -865,6 +966,34 @@ void gameLobby::SendRequestForJoining(int ID)
     t2 = std::thread(WaitforResponseThread);
 }
 
+// void gameLobby::SendRequestForJoining(int ID)
+// {
+//     // Create Json
+//     cJSON *Request = cJSON_CreateObject();
+//     cJSON_AddStringToObject(Request, "Type", "JOIN_ROOM");
+//     cJSON_AddStringToObject(Request, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
+//     cJSON_AddNumberToObject(Request, "ID", ID);
+
+//     char *JsonToSend = cJSON_Print(Request);
+//     cJSON_Delete(Request);
+    
+//     if (send(Connection, JsonToSend, strlen(JsonToSend), 0) < 0)
+//     {
+//         return;
+//     }
+    
+//     waiting = true;
+    
+//     // Use QTimer instead of a separate thread
+//     QTimer::singleShot(4000, this, [this]() {
+//         if (waiting) {
+//             qDebug() << "Join Room time out!";
+//             emit TimeoutJoin();
+//             waiting = false;
+//         }
+//     });
+// }
+
 void gameLobby::sendInvite(const QString &username)
 {
     static bool isInviteInProgress = false; // Prevent multiple invites simultaneously
@@ -926,7 +1055,7 @@ void gameLobby::WaitforResponseThread()
 {
     // this is thread safe
     clientptr->waiting = true;
-    sleep(4000);
+    QThread::msleep(4000);
     if (clientptr->waiting)
     {
         // Join in Room failed!
@@ -948,8 +1077,22 @@ void gameLobby::Leave()
     inRooms = false;
     waiting = false;
     yourSide = -1;
-    Game->hide();
-    Game->mainmenu();
+    if (matchingDialog) {
+        matchingDialog->hide();
+        matchingDialog->deleteLater();
+        matchingDialog = nullptr;
+    }
+    // Game->hide();
+    // Game->mainmenu();
+    cJSON *Mesg = cJSON_CreateObject();
+    cJSON_AddStringToObject(Mesg, "Type", "LEAVE");
+    char *JsonToSend = cJSON_Print(Mesg);
+    cJSON_Delete(Mesg);
+
+    if (Connection != -1) {
+        send(Connection, JsonToSend, strlen(JsonToSend), 0);
+        free(JsonToSend);
+    }
     showRooms();
     QMessageBox::information(NULL, "Game is end", "The host or player already left the room.");
 }
@@ -1104,6 +1247,64 @@ void gameLobby::sendDraw(int reply)
     qDebug() << JsonToSend;
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL))
         emit Draw();
+}
+
+void gameLobby::MatchRandomPlayer()
+{
+    if (!host && !waiting && !inRooms)
+    {
+        // Create and show waiting dialog
+        matchingDialog = new QDialog(this);
+        matchingDialog->setWindowTitle("Finding Match");
+        
+        QVBoxLayout* layout = new QVBoxLayout(matchingDialog);
+        
+        QLabel* waitLabel = new QLabel("Waiting for opponent...");
+        layout->addWidget(waitLabel);
+        
+        QPushButton* cancelBtn = new QPushButton("Cancel");
+        connect(cancelBtn, &QPushButton::clicked, this, &gameLobby::CancelRandomMatch);
+        layout->addWidget(cancelBtn);
+        
+        // Send random match request to server
+        cJSON* Mesg = cJSON_CreateObject();
+        cJSON_AddStringToObject(Mesg, "Type", "RANDOM_MATCH");
+        cJSON_AddStringToObject(Mesg, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
+        
+        char* JsonToSend = cJSON_Print(Mesg);
+        cJSON_Delete(Mesg);
+        
+        if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) < 0)
+        {
+            QMessageBox::critical(NULL, "Error", "Failed to send match request!");
+            delete matchingDialog;
+            return;
+        }
+        
+        waiting = true;
+        matchingDialog->show();
+    }
+}
+
+void gameLobby::CancelRandomMatch()
+{
+    if (waiting)
+    {
+        cJSON* Mesg = cJSON_CreateObject();
+        cJSON_AddStringToObject(Mesg, "Type", "CANCEL_RANDOM_MATCH");
+        char* JsonToSend = cJSON_Print(Mesg);
+        cJSON_Delete(Mesg);
+        
+        send(Connection, JsonToSend, strlen(JsonToSend), NULL);
+        
+        waiting = false;
+        if (matchingDialog)
+        {
+            matchingDialog->close();
+            delete matchingDialog;
+            matchingDialog = nullptr;
+        }
+    }
 }
 
 std::string statusToString(StatusCode code)

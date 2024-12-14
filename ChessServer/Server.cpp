@@ -550,6 +550,16 @@ bool Server::Processinfo(int ID)
                          << JsonToSend << " To: " << ID << endl;
                     string Send(JsonToSend);
                     SendString(ID, Send);
+
+                    if (PlayerList.count(ID) > 0) {
+                        PlayerList[ID]->returnToLobby();
+                        PlayerList[ID]->isWaitingForRandomMatch = false;
+                    }
+                    if (PlayerList.count(anotherPlayer) > 0) {
+                        PlayerList[anotherPlayer]->returnToLobby();
+                        PlayerList[anotherPlayer]->isWaitingForRandomMatch = false;
+                    }
+
                     UpdateElo(name, gain);
                 }
             }
@@ -564,6 +574,102 @@ bool Server::Processinfo(int ID)
                 {
                     SendString(anotherPlayer, Message);
                 }
+            }
+        }
+        else if (type == "RANDOM_MATCH")
+        {
+            cJSON* user = cJSON_GetObjectItem(json, "User");
+            string username = user->valuestring;
+            
+            // Check if there's already someone waiting for a match
+            bool matchFound = false;
+            for (auto& player : PlayerList)
+            {
+                if (player.second->isWaitingForRandomMatch)
+                {
+                    try {
+                        // Match found! Create a game
+                        int gameId = GameNum++;
+                        onlineGame newGame(new Game(gameId, player.first, 
+                                                  OnlineUserList[player.first].toStdString(), 
+                                                  true));  // Set isRandomMatch to true
+                        if (!newGame) {
+                            continue;  // Skip if game creation failed
+                        }
+                        
+                        // Set up game and players safely
+                        newGame->hostIs(player.second);
+                        GameList[gameId] = newGame;
+                        
+                        // Set up both players properly with error checking
+                        if (PlayerList.count(player.first) > 0 && PlayerList.count(ID) > 0) {
+                            player.second->JoininGame(gameId, newGame);
+                            PlayerList[ID]->JoininGame(gameId, newGame);
+                            newGame->Joinin(ID, PlayerList[ID], username);
+                            
+                            // Update player states
+                            player.second->isWaitingForRandomMatch = false;
+                            player.second->ishost = true;
+                            PlayerList[ID]->isWaitingForRandomMatch = false;
+                            
+                            // Notify first player (white)
+                            cJSON* response1 = cJSON_CreateObject();
+                            if (response1) {
+                                cJSON_AddStringToObject(response1, "Type", "RANDOM_MATCH_FOUND");
+                                cJSON_AddStringToObject(response1, "Opponent", username.c_str());
+                                cJSON_AddStringToObject(response1, "Side", "white");
+                                char* jsonStr1 = cJSON_Print(response1);
+                                if (jsonStr1) {
+                                    string msg1(jsonStr1);
+                                    SendString(player.first, msg1);
+                                    free(jsonStr1);
+                                }
+                                cJSON_Delete(response1);
+                            }
+                            
+                            // Notify second player (black)
+                            cJSON* response2 = cJSON_CreateObject();
+                            if (response2) {
+                                cJSON_AddStringToObject(response2, "Type", "RANDOM_MATCH_FOUND");
+                                cJSON_AddStringToObject(response2, "Opponent", OnlineUserList[player.first].toStdString().c_str());
+                                cJSON_AddStringToObject(response2, "Side", "black");
+                                char* jsonStr2 = cJSON_Print(response2);
+                                if (jsonStr2) {
+                                    string msg2(jsonStr2);
+                                    SendString(ID, msg2);
+                                    free(jsonStr2);
+                                }
+                                cJSON_Delete(response2);
+                            }
+                            
+                            matchFound = true;
+                        }
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error in random match: " << e.what() << std::endl;
+                        // Clean up any partial match state
+                        if (PlayerList.count(player.first) > 0) {
+                            PlayerList[player.first]->isWaitingForRandomMatch = false;
+                        }
+                        if (PlayerList.count(ID) > 0) {
+                            PlayerList[ID]->isWaitingForRandomMatch = false;
+                        }
+                    }
+                    break;
+                }
+            }
+            
+            if (!matchFound)
+            {
+                // No match found, set player as waiting
+                if (PlayerList.count(ID) > 0) {
+                    PlayerList[ID]->isWaitingForRandomMatch = true;
+                }
+            }
+        }
+        else if (type == "CANCEL_RANDOM_MATCH")
+        {
+            if (PlayerList.count(ID) > 0) {
+                PlayerList[ID]->isWaitingForRandomMatch = false;
             }
         }
     }
@@ -768,35 +874,81 @@ void Server::ClientHandlerThread(int ID) // ID = the index in the SOCKET Connect
         if (!serverptr->Processinfo(ID))
             break;
     }
+    std::lock_guard<std::mutex> lock(mutexLock);
     cout << "Lost connection to client ID: " << ID << endl;
     log("Lost connection to client ID: " + std::to_string(ID));
-    close(serverptr->Connections[ID]);
-    for (int i = 0; i < accList.size(); i++)
-    {
-        if (accList[i].ID == OnlineUserList[ID])
-        {
-            accList[i].login = false;
-            break;
+    // close(serverptr->Connections[ID]);
+    // for (int i = 0; i < accList.size(); i++)
+    // {
+    //     if (accList[i].ID == OnlineUserList[ID])
+    //     {
+    //         accList[i].login = false;
+    //         break;
+    //     }
+    // }
+    // OnlineUserList.erase(ID);
+    // if (serverptr->PlayerList[ID]->AreYouInGame() >= 0)
+    // {
+    //     cout << "Delete its game room: " << endl;
+    //     log("Delete its game room: ");
+    //     int HID = serverptr->PlayerList[ID]->AreYouInGame();
+    //     int anotherPlayer = serverptr->GameList[HID]->anotherPlayerID(ID);
+    //     if (anotherPlayer >= 0 && serverptr->PlayerList[anotherPlayer])
+    //     {
+    //         serverptr->systemSend(anotherPlayer, "LOST_CONNECTION");
+    //         serverptr->PlayerList[anotherPlayer]->returnToLobby();
+    //     }
+    //     serverptr->GameList.erase(HID);
+    //     serverptr->sendGameList(-1);
+    // }
+    // serverptr->PlayerList.erase(ID);
+    // serverptr->Connections.erase(ID);
+    // serverptr->TotalConnections -= 1;
+    if (serverptr->Connections.count(ID) > 0) {
+        close(serverptr->Connections[ID]);
+        serverptr->Connections.erase(ID);
+    }
+    
+    // Clean up online user
+    if (OnlineUserList.count(ID) > 0) {
+        QString username = OnlineUserList[ID];
+        for (auto& acc : accList) {
+            if (acc.ID == username) {
+                acc.login = false;
+                break;
+            }
+        }
+        OnlineUserList.erase(ID);
+    }
+    
+    // Clean up game room
+    if (serverptr->PlayerList.count(ID) > 0 && 
+        serverptr->PlayerList[ID]->AreYouInGame() >= 0) {
+        
+        int gameID = serverptr->PlayerList[ID]->AreYouInGame();
+        if (serverptr->GameList.count(gameID) > 0) {
+            auto game = serverptr->GameList[gameID];
+            int otherPlayerID = game->anotherPlayerID(ID);
+            
+            // Notify other player
+            if (otherPlayerID >= 0 && 
+                serverptr->PlayerList.count(otherPlayerID) > 0) {
+                serverptr->systemSend(otherPlayerID, "LOST_CONNECTION");
+                serverptr->PlayerList[otherPlayerID]->returnToLobby();
+            }
+            
+            // Remove game
+            serverptr->GameList.erase(gameID);
+            serverptr->sendGameList(-1);
         }
     }
-    OnlineUserList.erase(ID);
-    if (serverptr->PlayerList[ID]->AreYouInGame() >= 0)
-    {
-        cout << "Delete its game room: " << endl;
-        log("Delete its game room: ");
-        int HID = serverptr->PlayerList[ID]->AreYouInGame();
-        int anotherPlayer = serverptr->GameList[HID]->anotherPlayerID(ID);
-        if (anotherPlayer >= 0 && serverptr->PlayerList[anotherPlayer])
-        {
-            serverptr->systemSend(anotherPlayer, "LOST_CONNECTION");
-            serverptr->PlayerList[anotherPlayer]->returnToLobby();
-        }
-        serverptr->GameList.erase(HID);
-        serverptr->sendGameList(-1);
+    
+    // Clean up player
+    if (serverptr->PlayerList.count(ID) > 0) {
+        serverptr->PlayerList.erase(ID);
     }
-    serverptr->PlayerList.erase(ID);
-    serverptr->Connections.erase(ID);
-    serverptr->TotalConnections -= 1;
+    
+    serverptr->TotalConnections--;
 }
 
 int Server::NameToElo(std::string name)
