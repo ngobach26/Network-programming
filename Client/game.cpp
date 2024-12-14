@@ -955,6 +955,88 @@ void game::playAsBlackOnline(QString player1, QString player2)
     placePieces();
 }
 
+// void game::playAsWhiteOnline(QString player1, QString player2)
+// {
+//     // Clear previous game state
+//     if (Siri) {
+//         delete Siri;
+//         Siri = nullptr;
+//     }
+    
+//     // Reset game state
+//     AIsSide = -1;
+//     playerside = 0;
+//     onlineGame = true;
+    
+//     // Store player information
+//     hostName = player1;
+//     guestName = player2;
+    
+//     // Clear scene and reset game
+//     if (gameScene) {
+//         gameScene->clear();
+//     }
+    
+//     // Initialize game components
+//     playOffline();
+    
+//     // Add UI elements
+//     if (turnDisplay) {
+//         addToScene(turnDisplay);
+//     }
+//     if (check) {
+//         addToScene(check);
+//         check->setVisible(false);
+//     }
+    
+//     // Initialize board and pieces
+//     if (!board) {
+//         placeTheBoard();
+//     }
+//     placePieces();
+// }
+
+// void game::playAsBlackOnline(QString player1, QString player2)
+// {
+//     // Clear previous game state
+//     if (Siri) {
+//         delete Siri;
+//         Siri = nullptr;
+//     }
+    
+//     // Reset game state
+//     AIsSide = -1;
+//     playerside = 1;
+//     onlineGame = true;
+    
+//     // Store player information
+//     hostName = player2;
+//     guestName = player1;
+    
+//     // Clear scene and reset game
+//     if (gameScene) {
+//         gameScene->clear();
+//     }
+    
+//     // Initialize game components
+//     playOffline();
+    
+//     // Add UI elements
+//     if (turnDisplay) {
+//         addToScene(turnDisplay);
+//     }
+//     if (check) {
+//         addToScene(check);
+//         check->setVisible(false);
+//     }
+    
+//     // Initialize board and pieces
+//     if (!board) {
+//         placeTheBoard();
+//     }
+//     placePieces();
+// }
+
 void game::playAsWhiteOnline()
 {
     delete Siri;

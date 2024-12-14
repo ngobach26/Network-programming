@@ -12,11 +12,12 @@ class Game
 {
 public:
 	friend class Server;
-	Game(int id, int host_id, std::string host_name)
+	Game(int id, int host_id, std::string host_name, bool isRandom = false)
 	{
 		this->id = id;
 		this->host_id = host_id;
 		this->hostName = host_name;
+		this->isRandomMatch = isRandom;
 	}
 	void Joinin(int joinID, player Join_player, std::string p2Name)
 	{
@@ -85,4 +86,5 @@ private:
 	bool player2_play_again = false;
 	player host = NULL;
 	player player2 = NULL;
+	bool isRandomMatch = false;
 };

@@ -89,6 +89,7 @@ signals:
     void updateOnlineUserList(const QStringList &users);
     void inviteReceived(const QString &fromUser, int gameID);
     void inviteResponse(const QString &message, bool success);
+    void matchFound(QString opponent);
 
 
 protected:
@@ -133,8 +134,10 @@ private:
     button* getOnUserBtn;
     button* createRoomBtn;
     button* showChatBtn;
+    button* matchRandomBtn;
     //void CancelWaiting(); //need to be done
         //void sendMessage(string message);
+    QDialog* matchingDialog = nullptr;
 
 public slots:
     void createRoomsList(cJSON *Lists);
@@ -158,6 +161,8 @@ public slots:
     void handleOnlineUserList(const QStringList &users);
     void handleInvite(const QString &fromUser, int gameID);
     void onInviteResponse(const QString &message, bool success);
+    void MatchRandomPlayer();
+    void CancelRandomMatch();
 };
 
 
