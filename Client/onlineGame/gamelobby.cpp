@@ -1290,19 +1290,39 @@ void gameLobby::CancelRandomMatch()
 {
     if (waiting)
     {
-        cJSON* Mesg = cJSON_CreateObject();
-        cJSON_AddStringToObject(Mesg, "Type", "CANCEL_RANDOM_MATCH");
-        char* JsonToSend = cJSON_Print(Mesg);
-        cJSON_Delete(Mesg);
-        
-        send(Connection, JsonToSend, strlen(JsonToSend), NULL);
-        
-        waiting = false;
-        if (matchingDialog)
-        {
-            matchingDialog->close();
-            delete matchingDialog;
-            matchingDialog = nullptr;
+        try {
+            cJSON* Mesg = cJSON_CreateObject();
+            if (!Mesg) {
+                throw std::runtime_error("Failed to create JSON object");
+            }
+            
+            cJSON_AddStringToObject(Mesg, "Type", "CANCEL_RANDOM_MATCH");
+            cJSON_AddStringToObject(Mesg, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
+            
+            char* JsonToSend = cJSON_Print(Mesg);
+            if (!JsonToSend) {
+                cJSON_Delete(Mesg);
+                throw std::runtime_error("Failed to print JSON");
+            }
+            
+            if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) < 0) {
+                free(JsonToSend);
+                cJSON_Delete(Mesg);
+                throw std::runtime_error("Failed to send cancel request");
+            }
+            
+            free(JsonToSend);
+            cJSON_Delete(Mesg);
+            
+            waiting = false;
+            if (matchingDialog) {
+                matchingDialog->close();
+                delete matchingDialog;
+                matchingDialog = nullptr;
+            }
+        }
+        catch (const std::exception& e) {
+            QMessageBox::critical(this, "Error", QString("Failed to cancel match: %1").arg(e.what()));
         }
     }
 }
