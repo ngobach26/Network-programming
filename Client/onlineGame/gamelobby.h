@@ -1,6 +1,7 @@
 #ifndef GAMELOBBY_H
 #define GAMELOBBY_H
 
+#include "../elotier.h"
 
 #include <QGraphicsView>
 #include <QGraphicsScene>
@@ -43,6 +44,7 @@ enum class StatusCode
     SERVICE_UNAVAIABLE = 503
 };
 std::string statusToString(StatusCode code);
+
 class gameLobby : public QGraphicsView
 {
     Q_OBJECT
@@ -135,9 +137,11 @@ private:
     button* createRoomBtn;
     button* showChatBtn;
     button* matchRandomBtn;
+    button* matchEloBtn;
     //void CancelWaiting(); //need to be done
         //void sendMessage(string message);
     QDialog* matchingDialog = nullptr;
+    QDialog* eloMatchingDialog = nullptr;
 
 public slots:
     void createRoomsList(cJSON *Lists);
@@ -163,6 +167,8 @@ public slots:
     void onInviteResponse(const QString &message, bool success);
     void MatchRandomPlayer();
     void CancelRandomMatch();
+    void MatchEloPlayer();
+    void CancelEloMatch();
 };
 
 

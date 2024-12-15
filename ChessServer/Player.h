@@ -49,9 +49,12 @@ public:
 	}
     bool ishost = false;
 	bool isWaitingForRandomMatch = false;
-
+	bool isWaitingForEloMatch = false;
+	int waitingEloTier = -1;
 	bool isWaitingForMatch() const { return isWaitingForRandomMatch; }
 	void setWaitingForMatch(bool waiting) { isWaitingForRandomMatch = waiting; }
+	void setElo(int elo) { this->elo = elo; }
+	int getElo() const { return elo; }
 
 private:
 	int id;
@@ -59,4 +62,5 @@ private:
 	onlineGame game = NULL;
 
 	bool ingame = false;
+	int elo = 0;
 };

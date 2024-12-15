@@ -193,6 +193,7 @@ bool Server::ListenForNewConnection()
         Connections.insert(pair<int, int>(allID, newConnection));
         threadList[allID] = std::thread(&Server::ClientHandlerThread, this, allID);
         player newPlayer(new Player(allID));
+        newPlayer->setElo(0);  // Default ELO, will be updated when they log in
         PlayerList.insert(pair<int, player>(allID, newPlayer));
         allID++;
         TotalConnections += 1; // Incremenent total # of clients that have connected
@@ -287,6 +288,7 @@ bool Server::Processinfo(int ID)
             }
             if (flag > -1)
             {
+                PlayerList[ID]->setElo(accList[flag].elo);
                 sendResponse(ID, "LOGIN_RES", StatusCode::OK, "elo", std::to_string(accList[flag].elo));
                 sendGameList(ID);
                 OnlineUserList[ID] = user_UN;
@@ -509,22 +511,29 @@ bool Server::Processinfo(int ID)
         else if (type == "EndGame")
         {
             cJSON *json_result = cJSON_GetObjectItem(json, "Winner");
-            int eloA, eloB;
             int result = json_result->valueint;
             int HID = PlayerList[ID]->AreYouInGame();
-            if (HID >= 0)
+            if (HID >= 0 && GameList.count(HID) > 0)  // Add GameList existence check
             {
                 int anotherPlayer = GameList[HID]->anotherPlayerID(ID);
                 if (anotherPlayer >= 0)
                 {
                     float res;
                     std::string name;
+                    int eloA, eloB;
 
-                    if (PlayerList[ID]->ishost)
+                    // Handle draw case first
+                    if (result == 2) {
+                        res = 0.5;
+                        // For draws, we can use either player as playerA since the ELO calculation will be symmetric
+                        name = GameList[HID]->hostName;
+                        eloA = NameToElo(name);
+                        eloB = NameToElo(GameList[HID]->p2Name);
+                    }
+                    else if (PlayerList[ID]->ishost)
                     {
                         name = GameList[HID]->hostName;
                         eloA = NameToElo(name);
-
                         eloB = NameToElo(GameList[HID]->p2Name);
                         res = result;
                     }
@@ -533,24 +542,27 @@ bool Server::Processinfo(int ID)
                         name = GameList[HID]->p2Name;
                         eloA = NameToElo(name);
                         eloB = NameToElo(GameList[HID]->hostName);
-                        if (result == 0)
-                            res = 1;
-                        else if (result == 1)
-                            res = 0;
+                        res = (result == 0) ? 1.0f : 0.0f;
                     }
-                    if (result == 2)
-                        res = 0.5;
-                    int gain = CalculateElo(eloA, eloB, res);
-                    cJSON *json = cJSON_CreateObject();
-                    cJSON_AddStringToObject(json, "Type", "Result");
-                    cJSON_AddNumberToObject(json, "elo", gain);
-                    char *JsonToSend = cJSON_Print(json);
-                    cJSON_Delete(json);
-                    cout << "send:" << endl
-                         << JsonToSend << " To: " << ID << endl;
-                    string Send(JsonToSend);
-                    SendString(ID, Send);
 
+                    // Calculate and send ELO changes
+                    int gain = CalculateElo(eloA, eloB, res);
+                    
+                    // Create response JSON
+                    cJSON *response = cJSON_CreateObject();
+                    if (response) {
+                        cJSON_AddStringToObject(response, "Type", "Result");
+                        cJSON_AddNumberToObject(response, "elo", gain);
+                        char *JsonToSend = cJSON_Print(response);
+                        if (JsonToSend) {
+                            string Send(JsonToSend);
+                            SendString(ID, Send);
+                            free(JsonToSend);
+                        }
+                        cJSON_Delete(response);
+                    }
+
+                    // Clean up game state
                     if (PlayerList.count(ID) > 0) {
                         PlayerList[ID]->returnToLobby();
                         PlayerList[ID]->isWaitingForRandomMatch = false;
@@ -560,20 +572,73 @@ bool Server::Processinfo(int ID)
                         PlayerList[anotherPlayer]->isWaitingForRandomMatch = false;
                     }
 
+                    // Update ELO in database
                     UpdateElo(name, gain);
                 }
             }
         }
+        // else if (type == "ASK_DRAW" || type == "DRAW")
+        // {
+        //     if (PlayerList[ID]->AreYouInGame() >= 0)
+        //     {
+        //         int HID = PlayerList[ID]->AreYouInGame();
+        //         int anotherPlayer = GameList[HID]->anotherPlayerID(ID);
+        //         if (anotherPlayer >= 0)
+        //         {
+        //             SendString(anotherPlayer, Message);
+        //         }
+        //     }
+        // }
         else if (type == "ASK_DRAW" || type == "DRAW")
         {
-            if (PlayerList[ID]->AreYouInGame() >= 0)
-            {
-                int HID = PlayerList[ID]->AreYouInGame();
-                int anotherPlayer = GameList[HID]->anotherPlayerID(ID);
-                if (anotherPlayer >= 0)
-                {
+            if (!PlayerList.count(ID)) {
+                cJSON_Delete(json);
+                return true;
+            }
+
+            auto player = PlayerList[ID];
+            if (!player) {
+                cJSON_Delete(json);
+                return true;
+            }
+
+            int gameID = player->AreYouInGame();
+            if (gameID < 0 || !GameList.count(gameID)) {
+                cJSON_Delete(json);
+                return true;
+            }
+
+            auto game = GameList[gameID];
+            if (!game) {
+                cJSON_Delete(json);
+                return true;
+            }
+
+            int anotherPlayer = game->anotherPlayerID(ID);
+            if (anotherPlayer < 0 || !PlayerList.count(anotherPlayer)) {
+                cJSON_Delete(json);
+                return true;
+            }
+
+            // Special handling for random matches
+            if (game->isRandomMatch) {
+                try {
                     SendString(anotherPlayer, Message);
+                } catch (...) {
+                    // If sending fails, clean up the game properly
+                    if (PlayerList.count(ID)) {
+                        PlayerList[ID]->returnToLobby();
+                        PlayerList[ID]->isWaitingForRandomMatch = false;
+                    }
+                    if (PlayerList.count(anotherPlayer)) {
+                        PlayerList[anotherPlayer]->returnToLobby();
+                        PlayerList[anotherPlayer]->isWaitingForRandomMatch = false;
+                    }
+                    GameList.erase(gameID);
                 }
+            } else {
+                // Normal game draw handling
+                SendString(anotherPlayer, Message);
             }
         }
         else if (type == "RANDOM_MATCH")
@@ -670,6 +735,140 @@ bool Server::Processinfo(int ID)
         {
             if (PlayerList.count(ID) > 0) {
                 PlayerList[ID]->isWaitingForRandomMatch = false;
+            }
+        }
+        else if (type == "ELO_MATCH")
+        {
+            try {
+                if (!json || !cJSON_HasObjectItem(json, "User") || !cJSON_HasObjectItem(json, "ELO") || !cJSON_HasObjectItem(json, "Tier")) {
+                    sendResponse(ID, "ELO_MATCH_RES", StatusCode::BAD_REQUEST);
+                    cJSON_Delete(json);
+                    return true;
+                }
+
+                cJSON* user = cJSON_GetObjectItem(json, "User");
+                cJSON* elo = cJSON_GetObjectItem(json, "ELO");
+                cJSON* tier = cJSON_GetObjectItem(json, "Tier");
+                
+                if (!user || !user->valuestring || !elo || !tier) {
+                    sendResponse(ID, "ELO_MATCH_RES", StatusCode::BAD_REQUEST);
+                    cJSON_Delete(json);
+                    return true;
+                }
+
+                string username = user->valuestring;
+                int playerElo = elo->valueint;
+                int playerTier = tier->valueint;
+
+                // Check if player is already in a game
+                if (!PlayerList[ID] || !PlayerList[ID]->isFree()) {
+                    sendResponse(ID, "ELO_MATCH_RES", StatusCode::CONFLICT, "Message", "Player is already in a game");
+                    cJSON_Delete(json);
+                    return true;
+                }
+
+                // Check if there's already someone waiting in the same ELO tier
+                bool matchFound = false;
+                for (auto& player : PlayerList) {
+                    if (player.first != ID && 
+                        player.second && 
+                        player.second->isWaitingForEloMatch && 
+                        player.second->waitingEloTier == playerTier &&
+                        player.second->isFree())
+                    {
+                        try {
+                            // Match found! Create a game
+                            int gameId = GameNum++;
+                            onlineGame newGame(new Game(gameId, player.first, OnlineUserList[player.first].toStdString()));
+                            if (!newGame) {
+                                throw std::runtime_error("Failed to create new game");
+                            }
+
+                            newGame->hostIs(player.second);
+                            GameList[gameId] = newGame;
+
+                            // Notify first player (white)
+                            cJSON* response1 = cJSON_CreateObject();
+                            if (!response1) {
+                                throw std::runtime_error("Failed to create JSON response");
+                            }
+                            cJSON_AddStringToObject(response1, "Type", "ELO_MATCH_FOUND");
+                            cJSON_AddStringToObject(response1, "Opponent", username.c_str());
+                            cJSON_AddStringToObject(response1, "Side", "white");
+                            cJSON_AddNumberToObject(response1, "OpponentElo", playerElo);
+                            char* jsonStr1 = cJSON_Print(response1);
+                            if (!jsonStr1) {
+                                cJSON_Delete(response1);
+                                throw std::runtime_error("Failed to print JSON");
+                            }
+                            string msg1(jsonStr1);
+                            free(jsonStr1);
+                            SendString(player.first, msg1);
+                            cJSON_Delete(response1);
+
+                            // Notify second player (black)
+                            cJSON* response2 = cJSON_CreateObject();
+                            if (!response2) {
+                                throw std::runtime_error("Failed to create JSON response");
+                            }
+                            cJSON_AddStringToObject(response2, "Type", "ELO_MATCH_FOUND");
+                            cJSON_AddStringToObject(response2, "Opponent", OnlineUserList[player.first].toStdString().c_str());
+                            cJSON_AddStringToObject(response2, "Side", "black");
+                            cJSON_AddNumberToObject(response2, "OpponentElo", player.second->getElo());
+                            char* jsonStr2 = cJSON_Print(response2);
+                            if (!jsonStr2) {
+                                cJSON_Delete(response2);
+                                throw std::runtime_error("Failed to print JSON");
+                            }
+                            string msg2(jsonStr2);
+                            free(jsonStr2);
+                            SendString(ID, msg2);
+                            cJSON_Delete(response2);
+
+                            // Update player states
+                            player.second->isWaitingForEloMatch = false;
+                            player.second->waitingEloTier = -1;
+                            PlayerList[ID]->JoininGame(gameId, newGame);
+                            newGame->Joinin(ID, PlayerList[ID], username);
+
+                            matchFound = true;
+                            break;
+                        }
+                        catch (const std::exception& e) {
+                            log("Error in ELO matching: " + string(e.what()));
+                            sendResponse(ID, "ELO_MATCH_RES", StatusCode::SERVER_ERROR);
+                            player.second->isWaitingForEloMatch = false;
+                            player.second->waitingEloTier = -1;
+                            cJSON_Delete(json);
+                            return true;
+                        }
+                    }
+                }
+
+                if (!matchFound) {
+                    // No match found, set player as waiting
+                    PlayerList[ID]->isWaitingForEloMatch = true;
+                    PlayerList[ID]->waitingEloTier = playerTier;
+                    sendResponse(ID, "ELO_MATCH_RES", StatusCode::OK, "Message", "Waiting for opponent");
+                }
+            }
+            catch (const std::exception& e) {
+                log("Error in ELO matching: " + string(e.what()));
+                sendResponse(ID, "ELO_MATCH_RES", StatusCode::SERVER_ERROR);
+            }
+        }
+        else if (type == "CANCEL_ELO_MATCH")
+        {
+            try {
+                if (PlayerList[ID]) {
+                    PlayerList[ID]->isWaitingForEloMatch = false;
+                    PlayerList[ID]->waitingEloTier = -1;
+                    sendResponse(ID, "CANCEL_ELO_MATCH_RES", StatusCode::OK);
+                }
+            }
+            catch (const std::exception& e) {
+                log("Error in canceling ELO match: " + string(e.what()));
+                sendResponse(ID, "CANCEL_ELO_MATCH_RES", StatusCode::SERVER_ERROR);
             }
         }
     }

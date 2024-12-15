@@ -144,6 +144,11 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     connect(matchRandomBtn, SIGNAL(clicked()), this, SLOT(MatchRandomPlayer()));
     OnlineScene->addItem(matchRandomBtn);
 
+    matchEloBtn = new button("Matching Player By Elo");
+    matchEloBtn->setPos(900, 750);
+    connect(matchEloBtn, SIGNAL(clicked()), this, SLOT(MatchEloPlayer()));
+    OnlineScene->addItem(matchEloBtn);
+
     OnlineScene->addItem(createRankingWidget());
 
     hostWindow();
@@ -805,6 +810,34 @@ bool gameLobby::GetString()
         // });
         cJSON_Delete(json);
     }
+    else if (type == "ELO_MATCH_FOUND")
+    {
+        cJSON* opponent = cJSON_GetObjectItem(json, "Opponent");
+        cJSON* side = cJSON_GetObjectItem(json, "Side");
+        cJSON* opponentElo = cJSON_GetObjectItem(json, "OpponentElo");
+        
+        if (eloMatchingDialog)
+        {
+            eloMatchingDialog->close();
+            delete eloMatchingDialog;
+            eloMatchingDialog = nullptr;
+        }
+        
+        waiting = false;
+        inRooms = true;
+        
+        QString opponentName = QString::fromStdString(opponent->valuestring);
+        if (QString::fromStdString(side->valuestring) == "white")
+        {
+            yourSide = 0;
+            emit PlayWhite(id_id, opponentName);
+        }
+        else
+        {
+            yourSide = 1;
+            emit PlayBlack(opponentName, id_id);
+        }
+    }
     return true;
 }
 
@@ -1303,6 +1336,115 @@ void gameLobby::CancelRandomMatch()
             matchingDialog->close();
             delete matchingDialog;
             matchingDialog = nullptr;
+        }
+    }
+}
+
+void gameLobby::MatchEloPlayer()
+{
+    if (!host && !waiting && !inRooms)
+    {
+        try {
+            // Create and show waiting dialog
+            eloMatchingDialog = new QDialog(this);
+            eloMatchingDialog->setWindowTitle("Finding Match by ELO");
+            
+            QVBoxLayout* layout = new QVBoxLayout(eloMatchingDialog);
+            
+            QString tierName;
+            EloTier tier = getEloTier(id_elo);
+            switch(tier) {
+                case EloTier::BEGINNER: tierName = "Beginner (0-800)"; break;
+                case EloTier::INTERMEDIATE: tierName = "Intermediate (801-1600)"; break;
+                case EloTier::ADVANCED: tierName = "Advanced (1601-2000)"; break;
+                case EloTier::EXPERT: tierName = "Expert (2001-2400)"; break;
+                case EloTier::MASTER: tierName = "Master (2400+)"; break;
+            }
+            
+            QLabel* waitLabel = new QLabel(QString("Searching for opponent in %1 tier...\nYour ELO: %2").arg(tierName).arg(id_elo));
+            layout->addWidget(waitLabel);
+            
+            QPushButton* cancelBtn = new QPushButton("Cancel");
+            connect(cancelBtn, &QPushButton::clicked, this, &gameLobby::CancelEloMatch);
+            layout->addWidget(cancelBtn);
+            
+            // Send ELO match request to server
+            cJSON* Mesg = cJSON_CreateObject();
+            if (!Mesg) {
+                throw std::runtime_error("Failed to create JSON object");
+            }
+            
+            cJSON_AddStringToObject(Mesg, "Type", "ELO_MATCH");
+            cJSON_AddStringToObject(Mesg, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
+            cJSON_AddNumberToObject(Mesg, "ELO", id_elo);
+            cJSON_AddNumberToObject(Mesg, "Tier", static_cast<int>(tier));
+            
+            char* JsonToSend = cJSON_Print(Mesg);
+            if (!JsonToSend) {
+                cJSON_Delete(Mesg);
+                throw std::runtime_error("Failed to print JSON");
+            }
+            
+            if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) < 0)
+            {
+                free(JsonToSend);
+                cJSON_Delete(Mesg);
+                throw std::runtime_error("Failed to send match request");
+            }
+            
+            free(JsonToSend);
+            cJSON_Delete(Mesg);
+            
+            waiting = true;
+            eloMatchingDialog->show();
+        }
+        catch (const std::exception& e) {
+            QMessageBox::critical(this, "Error", QString("Failed to initiate ELO match: %1").arg(e.what()));
+            if (eloMatchingDialog) {
+                delete eloMatchingDialog;
+                eloMatchingDialog = nullptr;
+            }
+            waiting = false;
+        }
+    }
+}
+
+void gameLobby::CancelEloMatch()
+{
+    if (waiting)
+    {
+        try {
+            cJSON* Mesg = cJSON_CreateObject();
+            if (!Mesg) {
+                throw std::runtime_error("Failed to create JSON object");
+            }
+            
+            cJSON_AddStringToObject(Mesg, "Type", "CANCEL_ELO_MATCH");
+            char* JsonToSend = cJSON_Print(Mesg);
+            
+            if (!JsonToSend) {
+                cJSON_Delete(Mesg);
+                throw std::runtime_error("Failed to print JSON");
+            }
+            
+            if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) < 0) {
+                free(JsonToSend);
+                cJSON_Delete(Mesg);
+                throw std::runtime_error("Failed to send cancel request");
+            }
+            
+            free(JsonToSend);
+            cJSON_Delete(Mesg);
+            
+            waiting = false;
+            if (eloMatchingDialog) {
+                eloMatchingDialog->close();
+                delete eloMatchingDialog;
+                eloMatchingDialog = nullptr;
+            }
+        }
+        catch (const std::exception& e) {
+            QMessageBox::critical(this, "Error", QString("Failed to cancel ELO match: %1").arg(e.what()));
         }
     }
 }
