@@ -668,8 +668,17 @@ bool Server::Processinfo(int ID)
         }
         else if (type == "CANCEL_RANDOM_MATCH")
         {
-            if (PlayerList.count(ID) > 0) {
-                PlayerList[ID]->isWaitingForRandomMatch = false;
+            try {
+                if (PlayerList.count(ID) > 0) {
+                    PlayerList[ID]->isWaitingForRandomMatch = false;
+                    sendResponse(ID, "CANCEL_RANDOM_MATCH_RES", StatusCode::OK, "Message", "Random match cancelled");
+                } else {
+                    sendResponse(ID, "CANCEL_RANDOM_MATCH_RES", StatusCode::NOT_FOUND, "Message", "Player not found");
+                }
+            }
+            catch (const std::exception& e) {
+                log("Error in canceling random match: " + string(e.what()));
+                sendResponse(ID, "CANCEL_RANDOM_MATCH_RES", StatusCode::SERVER_ERROR, "Message", "Internal server error");
             }
         }
     }
