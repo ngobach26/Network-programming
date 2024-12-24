@@ -813,6 +813,24 @@ void game::gameOver(int color)
 
 
     }
+
+    // Add null checks and proper cleanup for random matches
+    if (onlineGame && Lobby)
+    {
+        // Reset random match state
+        Lobby->waiting = false;
+        
+        // Clean up game state
+        playerside = 0;
+        onlineGame = false;
+        
+        // Ensure proper cleanup of Lobby state
+        if (Lobby->matchingDialog) {
+            Lobby->matchingDialog->close();
+            delete Lobby->matchingDialog;
+            Lobby->matchingDialog = nullptr;
+        }
+    }
 }
 
 void game::delay()
