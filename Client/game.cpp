@@ -73,7 +73,7 @@ void game::register_user() {
     level.addItem(tr("Expert"));
     // Create a layout for the dialog
     QFormLayout layout(&dialog);
-    // layout.addRow("Server IP address:", &text1LineEdit);
+    layout.addRow("Server IP address:", &text1LineEdit);
     layout.addRow("User name:", &text2LineEdit);
     text3LineEdit.setEchoMode(QLineEdit::Password);
     layout.addRow("Password:", &text3LineEdit);

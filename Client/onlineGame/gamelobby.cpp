@@ -57,7 +57,7 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     text1LineEdit.setText("127.0.0.1");
     // Create a layout for the dialog
     QFormLayout layout(&dialog);
-    // layout.addRow("Server IP address:", &text1LineEdit);
+    layout.addRow("Server IP address:", &text1LineEdit);
     layout.addRow("User name:", &text2LineEdit);
     text3LineEdit.setEchoMode(QLineEdit::Password);
     layout.addRow("Password:", &text3LineEdit);

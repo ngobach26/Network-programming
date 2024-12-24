@@ -40,34 +40,40 @@ void log(const std::string &message)
     }
 }
 
-Server::Server(int PORT, bool BroadcastPublically) // Port = port to broadcast on. BroadcastPublically = false if server is not open to the public (people outside of your router), true = server is open to everyone (assumes that the port is properly forwarded on router settings)
+Server::Server(int PORT, bool BroadcastPublically)
 {
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(PORT);
-    if (BroadcastPublically) // If server is open to public
-        servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    else                                                   // If server is only for our router
-        servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // Broadcast locally
 
-    sListen = socket(AF_INET, SOCK_STREAM, 0);                                  // Create socket to listen for new connections
-    if ((::bind(sListen, (struct sockaddr *)&servaddr, sizeof(servaddr))) != 0) // Bind the address to the socket, if we fail to bind the address..
+    if (BroadcastPublically)
+        servaddr.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on all interfaces
+    else
+        servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // Only local connections
+
+    sListen = socket(AF_INET, SOCK_STREAM, 0); // Create a TCP socket
+    if ((::bind(sListen, (struct sockaddr *)&servaddr, sizeof(servaddr))) != 0)
     {
-        string ErrorMsg = "Failed to bind the address to our listening socket.";
+        std::string ErrorMsg = "Failed to bind the address to our listening socket.";
         std::cout << ErrorMsg << std::endl;
         log(ErrorMsg + " " + std::to_string(PORT) + "\nError code: " + std::to_string(errno));
         exit(1);
     }
-    if ((listen(sListen, SOMAXCONN)) != 0) // Places sListen socket in a state in which it is listening for an incoming connection. Note:SOMAXCONN = Socket Oustanding Max Connections, if we fail to listen on listening socket...
+
+    if ((listen(sListen, SOMAXCONN)) != 0)
     {
-        string ErrorMsg = "Failed to listen on listening socket.";
+        std::string ErrorMsg = "Failed to listen on listening socket.";
         std::cout << ErrorMsg << std::endl;
         log(ErrorMsg + " " + std::to_string(PORT) + "\nError code: " + std::to_string(errno));
         exit(1);
     }
+
+    std::cout << "Server is listening on port " << PORT << "..." << std::endl;
+
     serverptr = this;
     accList.clear();
     GetAllAccounts();
 }
+
 
 bool Server::Signup(QString username, QString password, int elo)
 {
