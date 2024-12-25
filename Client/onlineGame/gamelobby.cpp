@@ -18,6 +18,14 @@ static gameLobby *clientptr;
 bool gameLobby::is_opened = false;
 extern game *Game;
 
+EloTier getEloTier(int elo) {
+    if (elo <= 800) return EloTier::BEGINNER;
+    if (elo <= 1600) return EloTier::INTERMEDIATE;
+    if (elo <= 2000) return EloTier::ADVANCED;
+    if (elo <= 2400) return EloTier::EXPERT;
+    return EloTier::MASTER;
+}
+
 gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
 {
     gameLobby::is_opened = true;
@@ -58,7 +66,7 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     text1LineEdit.setText("127.0.0.1");
     // Create a layout for the dialog
     QFormLayout layout(&dialog);
-    // layout.addRow("Server IP address:", &text1LineEdit);
+    layout.addRow("Server IP address:", &text1LineEdit);
     layout.addRow("User name:", &text2LineEdit);
     text3LineEdit.setEchoMode(QLineEdit::Password);
     layout.addRow("Password:", &text3LineEdit);
@@ -139,10 +147,15 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     connect(createRoomBtn, SIGNAL(clicked()), this, SLOT(CreateAGameRoom()));
     OnlineScene->addItem(createRoomBtn);
 
-    matchRandomBtn = new button("Matching by Random Player");
+    matchRandomBtn = new button("Match by Random Player");
     matchRandomBtn->setPos(650, 750);
     connect(matchRandomBtn, SIGNAL(clicked()), this, SLOT(MatchRandomPlayer()));
     OnlineScene->addItem(matchRandomBtn);
+
+    eloRandomBtn = new button("Match Player by Elo");
+    eloRandomBtn->setPos(900, 750);
+    connect(eloRandomBtn, SIGNAL(clicked()), this, SLOT(MatchEloPlayer()));
+    OnlineScene->addItem(eloRandomBtn);
 
     OnlineScene->addItem(createRankingWidget());
 
@@ -153,29 +166,34 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
 gameLobby::~gameLobby()
 {
     gameLobby::is_opened = false;
-    
+
     // Clean up matching dialog
-    if (matchingDialog) {
+    if (matchingDialog)
+    {
         matchingDialog->hide();
         matchingDialog->deleteLater();
         matchingDialog = nullptr;
     }
-    
+
     // Clean up threads
-    if (t1.joinable()) {
+    if (t1.joinable())
+    {
         t1.join();
     }
-    if (t2.joinable()) {
+    if (t2.joinable())
+    {
         t2.join();
     }
-    
+
     // Close connection if still open
-    if (Connection != -1) {
+    if (Connection != -1)
+    {
         ::close(Connection);
         Connection = -1;
     }
 
-    if (matchingDialog) {
+    if (matchingDialog)
+    {
         matchingDialog->deleteLater();
         matchingDialog = nullptr;
     }
@@ -467,10 +485,11 @@ void gameLobby::closeEvent(QCloseEvent *event)
     gameLobby::is_opened = false;
     if (inRooms)
         // Game->mainmenu();
-        Leave();  
+        Leave();
     exitLobby();
     chRoom->close();
-    if (matchingDialog) {
+    if (matchingDialog)
+    {
         matchingDialog->hide();
         matchingDialog->deleteLater();
         matchingDialog = nullptr;
@@ -703,12 +722,11 @@ bool gameLobby::GetString()
         waiting = false;
         host = false;
         yourSide = -1;
-        
+
         // Use QTimer to delay the signal emission to ensure proper cleanup
-        QTimer::singleShot(0, this, [this]() {
-        emit someoneLeave();
-        });
-        
+        QTimer::singleShot(0, this, [this]()
+                           { emit someoneLeave(); });
+
         cJSON_Delete(json);
     }
     else if (type == "LOST_CONNECTION")
@@ -720,19 +738,19 @@ bool gameLobby::GetString()
         waiting = false;
         host = false;
         yourSide = -1;
-        
+
         // Safely clean up matching dialog if it exists
-        if (matchingDialog) {
+        if (matchingDialog)
+        {
             matchingDialog->hide();
             matchingDialog->deleteLater();
             matchingDialog = nullptr;
         }
-        
+
         // Use QTimer to delay the signal emission to ensure proper cleanup
-        QTimer::singleShot(0, this, [this]() {
-            emit someoneLeave();
-        });
-        
+        QTimer::singleShot(0, this, [this]()
+                           { emit someoneLeave(); });
+
         cJSON_Delete(json);
     }
     if (type == "SEND_PLAY_AGAIN")
@@ -768,17 +786,19 @@ bool gameLobby::GetString()
     else if (type == "RANDOM_MATCH_FOUND")
     {
         waiting = false;
-    
+
         // Safely clean up matching dialog
-        if (matchingDialog) {
-            matchingDialog->hide(); // Hide before delete to prevent visual artifacts
+        if (matchingDialog)
+        {
+            matchingDialog->hide();        // Hide before delete to prevent visual artifacts
             matchingDialog->deleteLater(); // Use deleteLater instead of direct delete
             matchingDialog = nullptr;
         }
-        cJSON* opponent = cJSON_GetObjectItem(json, "Opponent");
-        cJSON* side = cJSON_GetObjectItem(json, "Side");
-        
-        if (!opponent || !side) {
+        cJSON *opponent = cJSON_GetObjectItem(json, "Opponent");
+        cJSON *side = cJSON_GetObjectItem(json, "Side");
+
+        if (!opponent || !side)
+        {
             qDebug() << "Invalid match data received";
             cJSON_Delete(json);
             return true;
@@ -789,20 +809,55 @@ bool gameLobby::GetString()
 
         // Set game state before emitting signals
         inRooms = true;
-        
+
         // Initialize game with proper state
-        if (sideStr == "white") {
+        if (sideStr == "white")
+        {
             yourSide = 0;
             emit PlayWhite(id_id + "#" + QString::number(id_elo), opponentName);
-        } else {
+        }
+        else
+        {
             yourSide = 1;
             // emit PlayBlack(id_id + "#" + QString::number(id_elo), opponentName);
             emit PlayBlack(opponentName, id_id + "#" + QString::number(id_elo));
         }
-        
+
         // QTimer::singleShot(10, [this]() {
         emit ShowGame();
         // });
+        cJSON_Delete(json);
+    }
+    else if (type == "ELO_MATCH_FOUND")
+    {
+        waiting = false;
+
+        cJSON* opponent = cJSON_GetObjectItem(json, "Opponent");
+        cJSON* side = cJSON_GetObjectItem(json, "Side");
+        cJSON* opponentElo = cJSON_GetObjectItem(json, "OpponentElo");
+        
+        if (eloMatchingDialog)
+        {
+            eloMatchingDialog->close();
+            eloMatchingDialog->deleteLater();
+            eloMatchingDialog = nullptr;
+        }
+        
+        inRooms = true;
+        
+        QString opponentName = QString::fromStdString(opponent->valuestring);
+        QString sideStr = QString(side->valuestring);
+        if (sideStr == "white")
+        {
+            yourSide = 0;
+            emit PlayWhite(id_id + "#" + QString::number(id_elo), opponentName);
+        }
+        else
+        {
+            yourSide = 1;
+            emit PlayBlack(opponentName, id_id + "#" + QString::number(id_elo));
+        }
+        emit ShowGame();
         cJSON_Delete(json);
     }
     return true;
@@ -966,34 +1021,6 @@ void gameLobby::SendRequestForJoining(int ID)
     t2 = std::thread(WaitforResponseThread);
 }
 
-// void gameLobby::SendRequestForJoining(int ID)
-// {
-//     // Create Json
-//     cJSON *Request = cJSON_CreateObject();
-//     cJSON_AddStringToObject(Request, "Type", "JOIN_ROOM");
-//     cJSON_AddStringToObject(Request, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
-//     cJSON_AddNumberToObject(Request, "ID", ID);
-
-//     char *JsonToSend = cJSON_Print(Request);
-//     cJSON_Delete(Request);
-    
-//     if (send(Connection, JsonToSend, strlen(JsonToSend), 0) < 0)
-//     {
-//         return;
-//     }
-    
-//     waiting = true;
-    
-//     // Use QTimer instead of a separate thread
-//     QTimer::singleShot(4000, this, [this]() {
-//         if (waiting) {
-//             qDebug() << "Join Room time out!";
-//             emit TimeoutJoin();
-//             waiting = false;
-//         }
-//     });
-// }
-
 void gameLobby::sendInvite(const QString &username)
 {
     static bool isInviteInProgress = false; // Prevent multiple invites simultaneously
@@ -1045,10 +1072,6 @@ void gameLobby::exitLobby()
     char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
     cJSON_Delete(Mesg);
     send(Connection, JsonToSend, strlen(JsonToSend), NULL);
-    // int RetnCheck = send(Connection, JsonToSend, MAXSIZE, NULL);
-    // if (RetnCheck == SOCKET_ERROR)
-    // return false;
-    // return true;
 }
 
 void gameLobby::WaitforResponseThread()
@@ -1077,7 +1100,8 @@ void gameLobby::Leave()
     inRooms = false;
     waiting = false;
     yourSide = -1;
-    if (matchingDialog) {
+    if (matchingDialog)
+    {
         matchingDialog->hide();
         matchingDialog->deleteLater();
         matchingDialog = nullptr;
@@ -1089,7 +1113,8 @@ void gameLobby::Leave()
     char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
 
-    if (Connection != -1) {
+    if (Connection != -1)
+    {
         send(Connection, JsonToSend, strlen(JsonToSend), 0);
         free(JsonToSend);
     }
@@ -1256,31 +1281,31 @@ void gameLobby::MatchRandomPlayer()
         // Create and show waiting dialog
         matchingDialog = new QDialog(this);
         matchingDialog->setWindowTitle("Finding Match");
-        
-        QVBoxLayout* layout = new QVBoxLayout(matchingDialog);
-        
-        QLabel* waitLabel = new QLabel("Waiting for opponent...");
+
+        QVBoxLayout *layout = new QVBoxLayout(matchingDialog);
+
+        QLabel *waitLabel = new QLabel("Waiting for opponent...");
         layout->addWidget(waitLabel);
-        
-        QPushButton* cancelBtn = new QPushButton("Cancel");
+
+        QPushButton *cancelBtn = new QPushButton("Cancel");
         connect(cancelBtn, &QPushButton::clicked, this, &gameLobby::CancelRandomMatch);
         layout->addWidget(cancelBtn);
-        
+
         // Send random match request to server
-        cJSON* Mesg = cJSON_CreateObject();
+        cJSON *Mesg = cJSON_CreateObject();
         cJSON_AddStringToObject(Mesg, "Type", "RANDOM_MATCH");
         cJSON_AddStringToObject(Mesg, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
-        
-        char* JsonToSend = cJSON_Print(Mesg);
+
+        char *JsonToSend = cJSON_Print(Mesg);
         cJSON_Delete(Mesg);
-        
+
         if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) < 0)
         {
             QMessageBox::critical(NULL, "Error", "Failed to send match request!");
             delete matchingDialog;
             return;
         }
-        
+
         waiting = true;
         matchingDialog->show();
     }
@@ -1290,38 +1315,132 @@ void gameLobby::CancelRandomMatch()
 {
     if (waiting)
     {
-        try {
-            cJSON* Mesg = cJSON_CreateObject();
-            if (!Mesg) {
+        try
+        {
+            cJSON *Mesg = cJSON_CreateObject();
+            if (!Mesg)
+            {
                 throw std::runtime_error("Failed to create JSON object");
             }
-            
+
             cJSON_AddStringToObject(Mesg, "Type", "CANCEL_RANDOM_MATCH");
             cJSON_AddStringToObject(Mesg, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
-            
-            char* JsonToSend = cJSON_Print(Mesg);
-            if (!JsonToSend) {
+
+            char *JsonToSend = cJSON_Print(Mesg);
+            if (!JsonToSend)
+            {
                 cJSON_Delete(Mesg);
                 throw std::runtime_error("Failed to print JSON");
             }
-            
-            if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) < 0) {
+
+            if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) < 0)
+            {
                 free(JsonToSend);
                 cJSON_Delete(Mesg);
                 throw std::runtime_error("Failed to send cancel request");
             }
-            
+
             free(JsonToSend);
             cJSON_Delete(Mesg);
-            
+
             waiting = false;
-            if (matchingDialog) {
+            if (matchingDialog)
+            {
                 matchingDialog->close();
                 delete matchingDialog;
                 matchingDialog = nullptr;
             }
         }
-        catch (const std::exception& e) {
+        catch (const std::exception &e)
+        {
+            QMessageBox::critical(this, "Error", QString("Failed to cancel match: %1").arg(e.what()));
+        }
+    }
+}
+
+void gameLobby::MatchEloPlayer()
+{
+    if (!host && !waiting && !inRooms)
+    {
+        // Create and show waiting dialog
+        eloMatchingDialog = new QDialog(this);
+        eloMatchingDialog->setWindowTitle("Finding ELO Match");
+        
+        QVBoxLayout* layout = new QVBoxLayout(eloMatchingDialog);
+        
+        QString tierName;
+        EloTier tier = getEloTier(id_elo);
+        switch(tier) {
+            case EloTier::BEGINNER: tierName = "Beginner (0-800)"; break;
+            case EloTier::INTERMEDIATE: tierName = "Intermediate (801-1600)"; break;
+            case EloTier::ADVANCED: tierName = "Advanced (1601-2000)"; break;
+            case EloTier::EXPERT: tierName = "Expert (2001-2400)"; break;
+            case EloTier::MASTER: tierName = "Master (2400+)"; break;
+        }
+        
+        QLabel* waitLabel = new QLabel(QString("Finding opponent in %1 tier...\nYour ELO: %2").arg(tierName).arg(id_elo));
+        layout->addWidget(waitLabel);
+        
+        QPushButton* cancelBtn = new QPushButton("Cancel");
+        connect(cancelBtn, &QPushButton::clicked, this, &gameLobby::CancelEloMatch);
+        layout->addWidget(cancelBtn);
+        
+        // Send ELO match request
+        cJSON* Mesg = cJSON_CreateObject();
+        cJSON_AddStringToObject(Mesg, "Type", "ELO_MATCH");
+        cJSON_AddStringToObject(Mesg, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
+        
+        char* JsonToSend = cJSON_Print(Mesg);
+        cJSON_Delete(Mesg);
+        
+        if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) < 0)
+        {
+            QMessageBox::critical(NULL, "Error", "Failed to send match request!");
+            delete eloMatchingDialog;
+            return;
+        }
+        
+        waiting = true;
+        eloMatchingDialog->show();
+    }
+}
+
+void gameLobby::CancelEloMatch()
+{
+    if (waiting)
+    {
+        try
+        {
+            cJSON* Mesg = cJSON_CreateObject();
+            if (!Mesg)
+            {
+                    throw std::runtime_error("Failed to create JSON object");
+            }
+            cJSON_AddStringToObject(Mesg, "Type", "CANCEL_ELO_MATCH");
+            cJSON_AddStringToObject(Mesg, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
+
+            char* JsonToSend = cJSON_Print(Mesg);
+            if (!JsonToSend)
+            {
+                cJSON_Delete(Mesg);
+                throw std::runtime_error("Failed to print JSON");
+            }
+            
+            send(Connection, JsonToSend, strlen(JsonToSend), NULL);
+            
+            free(JsonToSend);
+            cJSON_Delete(Mesg);
+            
+            waiting = false;
+            if (eloMatchingDialog)
+            {
+                eloMatchingDialog->close();
+                delete eloMatchingDialog;
+                eloMatchingDialog = nullptr;
+            }
+        }
+        catch (const std::exception &e)
+        {
             QMessageBox::critical(this, "Error", QString("Failed to cancel match: %1").arg(e.what()));
         }
     }

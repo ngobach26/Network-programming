@@ -73,7 +73,7 @@ void game::register_user() {
     level.addItem(tr("Expert"));
     // Create a layout for the dialog
     QFormLayout layout(&dialog);
-    // layout.addRow("Server IP address:", &text1LineEdit);
+    layout.addRow("Server IP address:", &text1LineEdit);
     layout.addRow("User name:", &text2LineEdit);
     text3LineEdit.setEchoMode(QLineEdit::Password);
     layout.addRow("Password:", &text3LineEdit);
@@ -813,6 +813,24 @@ void game::gameOver(int color)
 
 
     }
+
+    // Add null checks and proper cleanup for random matches
+    if (onlineGame && Lobby)
+    {
+        // Reset random match state
+        Lobby->waiting = false;
+        
+        // Clean up game state
+        playerside = 0;
+        onlineGame = false;
+        
+        // Ensure proper cleanup of Lobby state
+        if (Lobby->matchingDialog) {
+            Lobby->matchingDialog->close();
+            delete Lobby->matchingDialog;
+            Lobby->matchingDialog = nullptr;
+        }
+    }
 }
 
 void game::delay()
@@ -954,120 +972,99 @@ void game::playAsBlackOnline(QString player1, QString player2)
     placeTheBoard();
     placePieces();
 }
-
-// void game::playAsWhiteOnline(QString player1, QString player2)
-// {
-//     // Clear previous game state
-//     if (Siri) {
-//         delete Siri;
-//         Siri = nullptr;
-//     }
-    
-//     // Reset game state
-//     AIsSide = -1;
-//     playerside = 0;
-//     onlineGame = true;
-    
-//     // Store player information
-//     hostName = player1;
-//     guestName = player2;
-    
-//     // Clear scene and reset game
-//     if (gameScene) {
-//         gameScene->clear();
-//     }
-    
-//     // Initialize game components
-//     playOffline();
-    
-//     // Add UI elements
-//     if (turnDisplay) {
-//         addToScene(turnDisplay);
-//     }
-//     if (check) {
-//         addToScene(check);
-//         check->setVisible(false);
-//     }
-    
-//     // Initialize board and pieces
-//     if (!board) {
-//         placeTheBoard();
-//     }
-//     placePieces();
-// }
-
-// void game::playAsBlackOnline(QString player1, QString player2)
-// {
-//     // Clear previous game state
-//     if (Siri) {
-//         delete Siri;
-//         Siri = nullptr;
-//     }
-    
-//     // Reset game state
-//     AIsSide = -1;
-//     playerside = 1;
-//     onlineGame = true;
-    
-//     // Store player information
-//     hostName = player2;
-//     guestName = player1;
-    
-//     // Clear scene and reset game
-//     if (gameScene) {
-//         gameScene->clear();
-//     }
-    
-//     // Initialize game components
-//     playOffline();
-    
-//     // Add UI elements
-//     if (turnDisplay) {
-//         addToScene(turnDisplay);
-//     }
-//     if (check) {
-//         addToScene(check);
-//         check->setVisible(false);
-//     }
-    
-//     // Initialize board and pieces
-//     if (!board) {
-//         placeTheBoard();
-//     }
-//     placePieces();
-// }
-
 void game::playAsWhiteOnline()
 {
-    delete Siri;
-    Siri =NULL;
-    AIsSide = -1;
-    playerside = 0;
-    onlineGame = true;
-    currentMovePair.clear();
-    gameScene->clear();
-    playOffline();
-    addToScene(turnDisplay);
-    addToScene(check);
-    placeTheBoard();
-    placePieces();
+    try {
+        if (Siri) {
+            delete Siri;
+            Siri = nullptr;
+        }
+        
+        AIsSide = -1;
+        playerside = 0;
+        onlineGame = true;
+        gameScene->clear();
+        currentMovePair.clear();
+        
+        playOffline();  // Set up basic game state
+        
+        if (turnDisplay) addToScene(turnDisplay);
+        if (check) addToScene(check);
+        
+        placeTheBoard();
+        placePieces();
+        
+        setTurn(true);  // White moves first
+        turnDisplay->setPlainText("Your Turn");
+        check->setPlainText("");
+        
+    } catch (const std::exception& e) {
+        qDebug() << "Error in playAsWhiteOnline:" << e.what();
+    }
 }
 
 void game::playAsBlackOnline()
 {
-    delete Siri;
-    Siri =NULL;
-    AIsSide = -1;
-    playerside = 1;
-    onlineGame = true;
-    gameScene->clear();
-    currentMovePair.clear();
-    playOffline();
-    addToScene(turnDisplay);
-    addToScene(check);
-    placeTheBoard();
-    placePieces();
+    try {
+        if (Siri) {
+            delete Siri;
+            Siri = nullptr;
+        }
+        
+        AIsSide = -1;
+        playerside = 1;
+        onlineGame = true;
+        gameScene->clear();
+        currentMovePair.clear();
+        
+        playOffline();  // Set up basic game state
+        
+        if (turnDisplay) addToScene(turnDisplay);
+        if (check) addToScene(check);
+        
+        placeTheBoard();
+        placePieces();
+        
+        setTurn(false);  // Wait for white's move
+        turnDisplay->setPlainText("Opponent's Turn");
+        check->setPlainText("");
+        
+    } catch (const std::exception& e) {
+        qDebug() << "Error in playAsBlackOnline:" << e.what();
+    }
 }
+
+// void game::playAsWhiteOnline()
+// {
+//     delete Siri;
+//     Siri =NULL;
+//     AIsSide = -1;
+//     playerside = 0;
+//     onlineGame = true;
+//     currentMovePair.clear();
+//     gameScene->clear();
+//     playOffline();
+//     addToScene(turnDisplay);
+//     addToScene(check);
+//     placeTheBoard();
+//     placePieces();
+// }
+
+// void game::playAsBlackOnline()
+// {
+//     delete Siri;
+//     Siri =NULL;
+//     AIsSide = -1;
+//     playerside = 1;
+//     onlineGame = true;
+//     gameScene->clear();
+//     currentMovePair.clear();
+//     playOffline();
+//     addToScene(turnDisplay);
+//     addToScene(check);
+//     placeTheBoard();
+//     placePieces();
+// }
 
 void game::Draw(){
     gameOver(2);

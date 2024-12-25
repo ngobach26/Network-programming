@@ -58,6 +58,14 @@ enum class StatusCode
     SERVICE_UNAVAIABLE = 503
 };
 
+enum class EloTier {
+    BEGINNER = 0,     // 0-800
+    INTERMEDIATE = 1,  // 801-1600
+    ADVANCED = 2,     // 1601-2000
+    EXPERT = 3,       // 2001-2400
+    MASTER = 4        // 2400+
+};
+
 class Server
 {
 public:
@@ -85,6 +93,8 @@ private:
     int CalculateElo(int playerA, int playerB, float result);
     void UpdateElo(string, int);
     QString GetTopRanking();
+    EloTier getEloTier(int elo) const;
+    int getPlayerElo(const QString& username);
 
 private:
     //-------------------------------------------
@@ -108,6 +118,9 @@ private:
     QVector<Account> accList;
     QString accsFilePath;
     std::mutex mutexLock;
+
+    bool sendMatchNotification(int playerID, const std::string& side, 
+                             const std::string& opponent, int opponentElo);
 };
 
 static Server *serverptr;

@@ -11,6 +11,14 @@
 #include <fstream>
 #include <iostream>
 
+EloTier Server::getEloTier(int elo) const {
+    if (elo <= 800) return EloTier::BEGINNER;
+    if (elo <= 1600) return EloTier::INTERMEDIATE;
+    if (elo <= 2000) return EloTier::ADVANCED;
+    if (elo <= 2400) return EloTier::EXPERT;
+    return EloTier::MASTER;
+}
+
 void log(const std::string &message)
 {
     std::ofstream logFile("../ChessServer/server.log", std::ios::app);
@@ -551,11 +559,13 @@ bool Server::Processinfo(int ID)
                     string Send(JsonToSend);
                     SendString(ID, Send);
 
-                    if (PlayerList.count(ID) > 0) {
+                    if (PlayerList.count(ID) > 0)
+                    {
                         PlayerList[ID]->returnToLobby();
                         PlayerList[ID]->isWaitingForRandomMatch = false;
                     }
-                    if (PlayerList.count(anotherPlayer) > 0) {
+                    if (PlayerList.count(anotherPlayer) > 0)
+                    {
                         PlayerList[anotherPlayer]->returnToLobby();
                         PlayerList[anotherPlayer]->isWaitingForRandomMatch = false;
                     }
@@ -578,48 +588,176 @@ bool Server::Processinfo(int ID)
         }
         else if (type == "RANDOM_MATCH")
         {
-            cJSON* user = cJSON_GetObjectItem(json, "User");
+            cJSON *user = cJSON_GetObjectItem(json, "User");
             string username = user->valuestring;
-            
+
             // Check if there's already someone waiting for a match
             bool matchFound = false;
-            for (auto& player : PlayerList)
+            for (auto &player : PlayerList)
             {
                 if (player.second->isWaitingForRandomMatch)
                 {
-                    try {
+                    try
+                    {
                         // Match found! Create a game
                         int gameId = GameNum++;
-                        onlineGame newGame(new Game(gameId, player.first, 
-                                                  OnlineUserList[player.first].toStdString(), 
-                                                  true));  // Set isRandomMatch to true
-                        if (!newGame) {
-                            continue;  // Skip if game creation failed
+                        onlineGame newGame(new Game(gameId, player.first,
+                                                    OnlineUserList[player.first].toStdString(),
+                                                    true, false)); // Set isRandomMatch to true
+                        if (!newGame)
+                        {
+                            continue; 
                         }
-                        
+
                         // Set up game and players safely
                         newGame->hostIs(player.second);
                         GameList[gameId] = newGame;
-                        
+
                         // Set up both players properly with error checking
-                        if (PlayerList.count(player.first) > 0 && PlayerList.count(ID) > 0) {
+                        if (PlayerList.count(player.first) > 0 && PlayerList.count(ID) > 0)
+                        {
                             player.second->JoininGame(gameId, newGame);
                             PlayerList[ID]->JoininGame(gameId, newGame);
                             newGame->Joinin(ID, PlayerList[ID], username);
-                            
+
                             // Update player states
                             player.second->isWaitingForRandomMatch = false;
                             player.second->ishost = true;
                             PlayerList[ID]->isWaitingForRandomMatch = false;
-                            
+
                             // Notify first player (white)
-                            cJSON* response1 = cJSON_CreateObject();
-                            if (response1) {
+                            cJSON *response1 = cJSON_CreateObject();
+                            if (response1)
+                            {
                                 cJSON_AddStringToObject(response1, "Type", "RANDOM_MATCH_FOUND");
                                 cJSON_AddStringToObject(response1, "Opponent", username.c_str());
                                 cJSON_AddStringToObject(response1, "Side", "white");
+                                char *jsonStr1 = cJSON_Print(response1);
+                                if (jsonStr1)
+                                {
+                                    string msg1(jsonStr1);
+                                    SendString(player.first, msg1);
+                                    free(jsonStr1);
+                                }
+                                cJSON_Delete(response1);
+                            }
+
+                            // Notify second player (black)
+                            cJSON *response2 = cJSON_CreateObject();
+                            if (response2)
+                            {
+                                cJSON_AddStringToObject(response2, "Type", "RANDOM_MATCH_FOUND");
+                                cJSON_AddStringToObject(response2, "Opponent", OnlineUserList[player.first].toStdString().c_str());
+                                cJSON_AddStringToObject(response2, "Side", "black");
+                                char *jsonStr2 = cJSON_Print(response2);
+                                if (jsonStr2)
+                                {
+                                    string msg2(jsonStr2);
+                                    SendString(ID, msg2);
+                                    free(jsonStr2);
+                                }
+                                cJSON_Delete(response2);
+                            }
+
+                            matchFound = true;
+                        }
+                    }
+                    catch (const std::exception &e)
+                    {
+                        std::cerr << "Error in random match: " << e.what() << std::endl;
+                        // Clean up any partial match state
+                        if (PlayerList.count(player.first) > 0)
+                        {
+                            PlayerList[player.first]->isWaitingForRandomMatch = false;
+                        }
+                        if (PlayerList.count(ID) > 0)
+                        {
+                            PlayerList[ID]->isWaitingForRandomMatch = false;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if (!matchFound)
+            {
+                // No match found, set player as waiting
+                if (PlayerList.count(ID) > 0)
+                {
+                    PlayerList[ID]->isWaitingForRandomMatch = true;
+                }
+            }
+        }
+        else if (type == "CANCEL_RANDOM_MATCH")
+        {
+            try
+            {
+                if (PlayerList.count(ID) > 0)
+                {
+                    PlayerList[ID]->isWaitingForRandomMatch = false;
+                    sendResponse(ID, "CANCEL_RANDOM_MATCH_RES", StatusCode::OK, "Message", "Random match cancelled");
+                }
+                else
+                {
+                    sendResponse(ID, "CANCEL_RANDOM_MATCH_RES", StatusCode::NOT_FOUND, "Message", "Player not found");
+                }
+            }
+            catch (const std::exception &e)
+            {
+                log("Error in canceling random match: " + string(e.what()));
+                sendResponse(ID, "CANCEL_RANDOM_MATCH_RES", StatusCode::SERVER_ERROR, "Message", "Internal server error");
+            }
+        }
+        else if (type == "ELO_MATCH")
+        {
+            cJSON* user = cJSON_GetObjectItem(json, "User");
+            string username = user->valuestring;
+            QString playerUsername = QString::fromStdString(username).split("#").at(0);
+            int playerElo = getPlayerElo(playerUsername);
+            
+            // Check if there's already someone waiting for a match
+            bool matchFound = false;
+            for (auto& player : PlayerList)
+            {   
+                if (player.second && player.second->isWaitingForEloMatch)
+                {
+                    QString waitingPlayerUsername = OnlineUserList[player.first];
+                    int waitingPlayerElo = getPlayerElo(waitingPlayerUsername);
+                    
+                    // Check if ELO tiers match
+                    if (getEloTier(playerElo) == getEloTier(waitingPlayerElo))
+                    {
+                        // Match found! Create a game
+                        int gameId = GameNum++;
+                        onlineGame newGame(new Game(gameId, player.first, OnlineUserList[player.first].toStdString(), false, true));
+                        newGame->hostIs(player.second);
+                        GameList[gameId] = newGame;
+
+                        if (!newGame)
+                        {
+                            continue; 
+                        }
+                        
+                        // Set up the game
+                        if (PlayerList.count(player.first) > 0 && PlayerList.count(ID) > 0)
+                        {
+                            player.second->JoininGame(gameId, newGame);
+                            PlayerList[ID]->JoininGame(gameId, newGame);
+                            newGame->Joinin(ID, PlayerList[ID], username);
+                            
+                            // Reset waiting state
+                            player.second->isWaitingForEloMatch = false;
+                            player.second->ishost = true;
+                            PlayerList[ID]->isWaitingForEloMatch = false;
+                            
+                            // Notify first player (white)
+                            cJSON* response1 = cJSON_CreateObject();
+                            if (response1){
+                                cJSON_AddStringToObject(response1, "Type", "ELO_MATCH_FOUND");
+                                cJSON_AddStringToObject(response1, "Opponent", username.c_str());
+                                cJSON_AddStringToObject(response1, "Side", "white");
                                 char* jsonStr1 = cJSON_Print(response1);
-                                if (jsonStr1) {
+                                if (jsonStr1){
                                     string msg1(jsonStr1);
                                     SendString(player.first, msg1);
                                     free(jsonStr1);
@@ -629,29 +767,21 @@ bool Server::Processinfo(int ID)
                             
                             // Notify second player (black)
                             cJSON* response2 = cJSON_CreateObject();
-                            if (response2) {
-                                cJSON_AddStringToObject(response2, "Type", "RANDOM_MATCH_FOUND");
+                            if (response2)
+                            {
+                                cJSON_AddStringToObject(response2, "Type", "ELO_MATCH_FOUND");
                                 cJSON_AddStringToObject(response2, "Opponent", OnlineUserList[player.first].toStdString().c_str());
                                 cJSON_AddStringToObject(response2, "Side", "black");
                                 char* jsonStr2 = cJSON_Print(response2);
-                                if (jsonStr2) {
+                                if (jsonStr2)
+                                {
                                     string msg2(jsonStr2);
                                     SendString(ID, msg2);
                                     free(jsonStr2);
                                 }
                                 cJSON_Delete(response2);
                             }
-                            
                             matchFound = true;
-                        }
-                    } catch (const std::exception& e) {
-                        std::cerr << "Error in random match: " << e.what() << std::endl;
-                        // Clean up any partial match state
-                        if (PlayerList.count(player.first) > 0) {
-                            PlayerList[player.first]->isWaitingForRandomMatch = false;
-                        }
-                        if (PlayerList.count(ID) > 0) {
-                            PlayerList[ID]->isWaitingForRandomMatch = false;
                         }
                     }
                     break;
@@ -660,31 +790,33 @@ bool Server::Processinfo(int ID)
             
             if (!matchFound)
             {
-                // No match found, set player as waiting
-                if (PlayerList.count(ID) > 0) {
-                    PlayerList[ID]->isWaitingForRandomMatch = true;
-                }
+                if (PlayerList.count(ID) > 0) PlayerList[ID]->isWaitingForEloMatch = true;
             }
         }
-        else if (type == "CANCEL_RANDOM_MATCH")
+        else if (type == "CANCEL_ELO_MATCH")
         {
-            try {
-                if (PlayerList.count(ID) > 0) {
-                    PlayerList[ID]->isWaitingForRandomMatch = false;
-                    sendResponse(ID, "CANCEL_RANDOM_MATCH_RES", StatusCode::OK, "Message", "Random match cancelled");
-                } else {
-                    sendResponse(ID, "CANCEL_RANDOM_MATCH_RES", StatusCode::NOT_FOUND, "Message", "Player not found");
+            try
+            {
+                if (PlayerList.find(ID) != PlayerList.end())
+                {
+                    PlayerList[ID]->isWaitingForEloMatch = false;
+                    sendResponse(ID, "CANCEL_ELO_MATCH_RES", StatusCode::OK, "Message", "Elo match cancelled");
+                }
+                else
+                {
+                    sendResponse(ID, "CANCEL_ELO_MATCH_RES", StatusCode::NOT_FOUND, "Message", "Player not found");
                 }
             }
-            catch (const std::exception& e) {
-                log("Error in canceling random match: " + string(e.what()));
-                sendResponse(ID, "CANCEL_RANDOM_MATCH_RES", StatusCode::SERVER_ERROR, "Message", "Internal server error");
+            catch (const std::exception &e)
+            {
+                log("Error in canceling Elo match: " + string(e.what()));
+                sendResponse(ID, "CANCEL_ELO_MATCH_RES", StatusCode::SERVER_ERROR, "Message", "Internal server error");
             }
         }
+        cout << "Processed chat message packet from user ID: " << ID << endl;
+        cJSON_Delete(json);
+        return true;
     }
-    cout << "Processed chat message packet from user ID: " << ID << endl;
-    cJSON_Delete(json);
-    return true;
 }
 
 QString Server::GetTopRanking()
@@ -913,50 +1045,58 @@ void Server::ClientHandlerThread(int ID) // ID = the index in the SOCKET Connect
     // serverptr->PlayerList.erase(ID);
     // serverptr->Connections.erase(ID);
     // serverptr->TotalConnections -= 1;
-    if (serverptr->Connections.count(ID) > 0) {
+    if (serverptr->Connections.count(ID) > 0)
+    {
         close(serverptr->Connections[ID]);
         serverptr->Connections.erase(ID);
     }
-    
+
     // Clean up online user
-    if (OnlineUserList.count(ID) > 0) {
+    if (OnlineUserList.count(ID) > 0)
+    {
         QString username = OnlineUserList[ID];
-        for (auto& acc : accList) {
-            if (acc.ID == username) {
+        for (auto &acc : accList)
+        {
+            if (acc.ID == username)
+            {
                 acc.login = false;
                 break;
             }
         }
         OnlineUserList.erase(ID);
     }
-    
+
     // Clean up game room
-    if (serverptr->PlayerList.count(ID) > 0 && 
-        serverptr->PlayerList[ID]->AreYouInGame() >= 0) {
-        
+    if (serverptr->PlayerList.count(ID) > 0 &&
+        serverptr->PlayerList[ID]->AreYouInGame() >= 0)
+    {
+
         int gameID = serverptr->PlayerList[ID]->AreYouInGame();
-        if (serverptr->GameList.count(gameID) > 0) {
+        if (serverptr->GameList.count(gameID) > 0)
+        {
             auto game = serverptr->GameList[gameID];
             int otherPlayerID = game->anotherPlayerID(ID);
-            
+
             // Notify other player
-            if (otherPlayerID >= 0 && 
-                serverptr->PlayerList.count(otherPlayerID) > 0) {
+            if (otherPlayerID >= 0 &&
+                serverptr->PlayerList.count(otherPlayerID) > 0)
+            {
                 serverptr->systemSend(otherPlayerID, "LOST_CONNECTION");
                 serverptr->PlayerList[otherPlayerID]->returnToLobby();
             }
-            
+
             // Remove game
             serverptr->GameList.erase(gameID);
             serverptr->sendGameList(-1);
         }
     }
-    
+
     // Clean up player
-    if (serverptr->PlayerList.count(ID) > 0) {
+    if (serverptr->PlayerList.count(ID) > 0)
+    {
         serverptr->PlayerList.erase(ID);
     }
-    
+
     serverptr->TotalConnections--;
 }
 
@@ -1021,4 +1161,43 @@ void Server::UpdateElo(std::string nameElo, int gain)
         return;
     }
     connector.closeConnection();
+}
+
+int Server::getPlayerElo(const QString& username) {
+    for (const auto& acc : accList) {
+        if (acc.ID == username) {
+            return acc.elo;
+        }
+    }
+    return 0;
+}
+
+bool Server::sendMatchNotification(int playerID, const std::string& side, 
+                                 const std::string& opponent, int opponentElo) 
+{
+    try {
+        cJSON* response = cJSON_CreateObject();
+        if (!response) return false;
+        
+        cJSON_AddStringToObject(response, "Type", "ELO_MATCH_FOUND");
+        cJSON_AddStringToObject(response, "Opponent", opponent.c_str());
+        cJSON_AddStringToObject(response, "Side", side.c_str());
+        cJSON_AddNumberToObject(response, "OpponentElo", opponentElo);
+        
+        char* jsonStr = cJSON_Print(response);
+        if (!jsonStr) {
+            cJSON_Delete(response);
+            return false;
+        }
+        
+        string msg(jsonStr);
+        free(jsonStr);
+        cJSON_Delete(response);
+        
+        return SendString(playerID, msg);
+        
+    } catch (const std::exception& e) {
+        log("Error sending match notification: " + std::string(e.what()));
+        return false;
+    }
 }
