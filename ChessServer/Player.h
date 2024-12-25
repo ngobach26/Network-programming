@@ -49,14 +49,34 @@ public:
 	}
     bool ishost = false;
 	bool isWaitingForRandomMatch = false;
+	bool isWaitingForEloMatch = false;
+	int waitingEloTier = -1;
+
+	// void setElo(int elo) { this->elo = elo; }
+	// int getElo() const { return elo; }
 
 	bool isWaitingForMatch() const { return isWaitingForRandomMatch; }
 	void setWaitingForMatch(bool waiting) { isWaitingForRandomMatch = waiting; }
+
+	void setMatchingState(bool waiting, int tier = -1) {
+		isWaitingForEloMatch = waiting;
+		waitingEloTier = tier;
+	}
+
+	void resetMatchingState() {
+		isWaitingForEloMatch = false;
+		isWaitingForRandomMatch = false;
+		waitingEloTier = -1;
+	}
+
+	// Add safety checks for game state
+	bool canJoinGame() const {
+		return !ishost && !ingame && !isWaitingForEloMatch && !isWaitingForRandomMatch;
+	}
 
 private:
 	int id;
 	int GameID = -1;
 	onlineGame game = NULL;
-
 	bool ingame = false;
 };

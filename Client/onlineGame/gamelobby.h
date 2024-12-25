@@ -42,6 +42,17 @@ enum class StatusCode
     SERVER_ERROR = 500,
     SERVICE_UNAVAIABLE = 503
 };
+
+enum class EloTier {
+    BEGINNER = 0,     // 0-800
+    INTERMEDIATE = 1,  // 801-1600
+    ADVANCED = 2,     // 1601-2000
+    EXPERT = 3,       // 2001-2400
+    MASTER = 4        // 2400+
+};
+
+
+
 std::string statusToString(StatusCode code);
 class gameLobby : public QGraphicsView
 {
@@ -135,9 +146,11 @@ private:
     button* createRoomBtn;
     button* showChatBtn;
     button* matchRandomBtn;
+    button* eloRandomBtn;
     //void CancelWaiting(); //need to be done
         //void sendMessage(string message);
     QDialog* matchingDialog = nullptr;
+    QDialog* eloMatchingDialog = nullptr;
 
 public slots:
     void createRoomsList(cJSON *Lists);
@@ -163,7 +176,8 @@ public slots:
     void onInviteResponse(const QString &message, bool success);
     void MatchRandomPlayer();
     void CancelRandomMatch();
+    void MatchEloPlayer();
+    void CancelEloMatch();
 };
-
 
 #endif // GAMELOBBY_H
