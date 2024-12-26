@@ -186,11 +186,11 @@ gameLobby::~gameLobby()
     }
 
     // Close connection if still open
-    if (Connection != -1)
-    {
-        ::close(Connection);
-        Connection = -1;
-    }
+    // if (Connection != -1)
+    // {
+    //     ::close(Connection);
+    //     Connection = -1;
+    // }
 
     if (matchingDialog)
     {
