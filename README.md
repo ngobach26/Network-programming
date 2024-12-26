@@ -15,11 +15,11 @@ sudo apt install libqt5sql5-mysql
 
 3. Setup MySQL database
 ```mysql
-CREATE DATABASE chess;
+CREATE DATABASE chess_db;
 ```
 
 ```mysql
-CREATE TABLE users (
+CREATE TABLE accounts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL,
