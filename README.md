@@ -8,7 +8,7 @@ Network Programming (IT4062E) Project - Group 1
 sudo apt install qtbase5-dev qt5-qmake libqt5sql5
 ```
 
-2. Install mysql connector/C++:
+2. Install mysql connector
 ```shell
 sudo apt install libqt5sql5-mysql  
 ```
@@ -39,7 +39,7 @@ make
 ```bash
 cd Client
 make
-./ChessClient
+./chessClient
 ```
 
 3. Register/Login with username, password and the IP address of the server and enjoy the game!
