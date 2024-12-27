@@ -10,4 +10,4 @@ struct Message
     std::string message;
 };
 
-#endif // MESSAGE_H
+#endif 

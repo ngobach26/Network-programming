@@ -4,7 +4,6 @@
 #include <iostream>
 #include <memory>
 
-
 class Player;
 typedef std::shared_ptr<Player> player;
 
@@ -75,8 +74,9 @@ public:
 		else
 			std::cout << "player2_play_again is FALSE" << std::endl;
 	}
-    std::string hostName;
-    std::string p2Name;
+	std::string hostName;
+	std::string p2Name;
+
 private:
 	int id;
 	int host_id;
@@ -88,5 +88,5 @@ private:
 	player host = NULL;
 	player player2 = NULL;
 	bool isRandomMatch = false;
-    bool isEloMatch = false;
+	bool isEloMatch = false;
 };

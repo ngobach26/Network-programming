@@ -1,7 +1,6 @@
 #ifndef GAMELOBBY_H
 #define GAMELOBBY_H
 
-
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QMouseEvent>
@@ -10,19 +9,15 @@
 #include <QStandardItemModel>
 #include <cstring>
 #include <QListView>
-
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <thread>
-
 #include "cJSON/cJSON.h"
 #include "onlinemove.h"
 #include "button.h"
-// #include "tablepagination.h"
 
 class ChessRoom;
 class Chatroom;
@@ -43,22 +38,21 @@ enum class StatusCode
     SERVICE_UNAVAIABLE = 503
 };
 
-enum class EloTier {
+enum class EloTier
+{
     BEGINNER = 0,     // 0-800
-    INTERMEDIATE = 1,  // 801-1600
+    INTERMEDIATE = 1, // 801-1600
     ADVANCED = 2,     // 1601-2000
     EXPERT = 3,       // 2001-2400
     MASTER = 4        // 2400+
 };
-
-
 
 std::string statusToString(StatusCode code);
 class gameLobby : public QGraphicsView
 {
     Q_OBJECT
 public:
-    gameLobby(QWidget *parent =0);
+    gameLobby(QWidget *parent = 0);
     ~gameLobby();
     bool connectError = false;
     void connectToServer(QString serverIP);
@@ -70,7 +64,6 @@ public:
     friend class ChessRoom;
     friend class game;
     int yourSide = -1;
-    //SignaL_XXXX means send signal for XXXX
     void Signal_socketClosed();
     void Signal_socketClosedfailed();
     void Signal_TimeoutJoin();
@@ -79,6 +72,7 @@ public:
     int id_elo;
     int recent_elo = 0;
     void sendDraw(int);
+
 signals:
     void updateRooms(cJSON *Lists);
     void socketClosed();
@@ -90,7 +84,7 @@ signals:
     void PlayBlack(QString, QString);
     void PlayWhiteAgain();
     void PlayBlackAgain();
-    void moveTo(onlineMove*); // need to be done
+    void moveTo(onlineMove *); // need to be done
     void Full();
     void RoomClose(); // need to be done;
     void ListFull();
@@ -101,7 +95,6 @@ signals:
     void inviteReceived(const QString &fromUser, int gameID);
     void inviteResponse(const QString &message, bool success);
     void matchFound(QString opponent);
-
 
 protected:
     void closeEvent(QCloseEvent *event);
@@ -118,39 +111,37 @@ private:
     bool host = false;
     bool waiting = false;
     bool connection = false;
-    QGraphicsScene* OnlineScene;
+    QGraphicsScene *OnlineScene;
     QGraphicsTextItem *titleText;
-    button * playButton;
-    bool sendMessage(const std::string& message, const std::string& username);
-    bool CreateRoom(const std::string& user);
+    button *playButton;
+    bool sendMessage(const std::string &message, const std::string &username);
+    bool CreateRoom(const std::string &user);
     bool GetString();
-    Chatroom* chRoom;
+    Chatroom *chRoom;
     void SendRequestForJoining(int ID);
     void sendInvite(const QString &username);
     QList<ChessRoom *> chessroomS;
     void exitLobby();
     void showRooms();
     void LobbySUI();
-    void waitingForJoin(); //nedd to be done
+    void waitingForJoin();
     void hostWindow();
     QGraphicsRectItem *rect;
     QGraphicsTextItem *WindowTitle;
-    button * CancelBotton;
+    button *CancelBotton;
     std::thread t1;
     std::thread t2;
     void hostWindow_hide();
     void hostWindow_show();
     bool requestLogIn(QString id, QString pw);
-    QStandardItemModel* onlineUserList = NULL;
-    button* getOnUserBtn;
-    button* createRoomBtn;
-    button* showChatBtn;
-    button* matchRandomBtn;
-    button* eloRandomBtn;
-    //void CancelWaiting(); //need to be done
-        //void sendMessage(string message);
-    QDialog* matchingDialog = nullptr;
-    QDialog* eloMatchingDialog = nullptr;
+    QStandardItemModel *onlineUserList = NULL;
+    button *getOnUserBtn;
+    button *createRoomBtn;
+    button *showChatBtn;
+    button *matchRandomBtn;
+    button *eloRandomBtn;
+    QDialog *matchingDialog = nullptr;
+    QDialog *eloMatchingDialog = nullptr;
 
 public slots:
     void createRoomsList(cJSON *Lists);
@@ -180,4 +171,4 @@ public slots:
     void CancelEloMatch();
 };
 
-#endif // GAMELOBBY_H
+#endif

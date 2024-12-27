@@ -5,7 +5,6 @@
 #include <memory>
 #include "Games.h"
 
-
 typedef std::shared_ptr<Game> onlineGame;
 
 class Player
@@ -26,7 +25,6 @@ public:
 		this->GameID = gameID;
 		this->game = GAME;
 		ishost = true;
-		//ingame = true;
 	}
 	void returnToLobby()
 	{
@@ -47,30 +45,28 @@ public:
 	{
 		return ishost && !ingame;
 	}
-    bool ishost = false;
+	bool ishost = false;
 	bool isWaitingForRandomMatch = false;
 	bool isWaitingForEloMatch = false;
 	int waitingEloTier = -1;
-
-	// void setElo(int elo) { this->elo = elo; }
-	// int getElo() const { return elo; }
-
 	bool isWaitingForMatch() const { return isWaitingForRandomMatch; }
 	void setWaitingForMatch(bool waiting) { isWaitingForRandomMatch = waiting; }
 
-	void setMatchingState(bool waiting, int tier = -1) {
+	void setMatchingState(bool waiting, int tier = -1)
+	{
 		isWaitingForEloMatch = waiting;
 		waitingEloTier = tier;
 	}
 
-	void resetMatchingState() {
+	void resetMatchingState()
+	{
 		isWaitingForEloMatch = false;
 		isWaitingForRandomMatch = false;
 		waitingEloTier = -1;
 	}
 
-	// Add safety checks for game state
-	bool canJoinGame() const {
+	bool canJoinGame() const
+	{
 		return !ishost && !ingame && !isWaitingForEloMatch && !isWaitingForRandomMatch;
 	}
 

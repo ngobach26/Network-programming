@@ -2,7 +2,6 @@
 
 #include <arpa/inet.h>
 #include <cmath>
-
 #include <QDebug>
 #include <QFile>
 #include <QTextStream>
@@ -10,12 +9,18 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <vector>
 
-EloTier Server::getEloTier(int elo) const {
-    if (elo <= 800) return EloTier::BEGINNER;
-    if (elo <= 1600) return EloTier::INTERMEDIATE;
-    if (elo <= 2000) return EloTier::ADVANCED;
-    if (elo <= 2400) return EloTier::EXPERT;
+EloTier Server::getEloTier(int elo) const
+{
+    if (elo <= 800)
+        return EloTier::BEGINNER;
+    if (elo <= 1600)
+        return EloTier::INTERMEDIATE;
+    if (elo <= 2000)
+        return EloTier::ADVANCED;
+    if (elo <= 2400)
+        return EloTier::EXPERT;
     return EloTier::MASTER;
 }
 
@@ -29,18 +34,15 @@ void log(const std::string &message)
         return;
     }
 
-    // Get current time
     std::time_t currentTime = std::time(nullptr);
     std::tm *localTime = std::localtime(&currentTime);
 
-    // Format time for the log entry
     char timeBuffer[1024];
     std::strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", localTime);
 
-    // Write log entry
     logFile << "[" << timeBuffer << "] " << message << std::endl;
-    logFile.flush(); // Flush the buffer to ensure the message is written to file
-    logFile.close(); // Close the file stream
+    logFile.flush();
+    logFile.close();
 
     if (logFile.fail())
     {
@@ -52,20 +54,20 @@ Server::Server(int PORT, bool BroadcastPublically) // Port = port to broadcast o
 {
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(PORT);
-    if (BroadcastPublically) // If server is open to public
+    if (BroadcastPublically)
         servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    else                                                   // If server is only for our router
-        servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // Broadcast locally
+    else
+        servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    sListen = socket(AF_INET, SOCK_STREAM, 0);                                  // Create socket to listen for new connections
-    if ((::bind(sListen, (struct sockaddr *)&servaddr, sizeof(servaddr))) != 0) // Bind the address to the socket, if we fail to bind the address..
+    sListen = socket(AF_INET, SOCK_STREAM, 0);
+    if ((::bind(sListen, (struct sockaddr *)&servaddr, sizeof(servaddr))) != 0)
     {
         string ErrorMsg = "Failed to bind the address to our listening socket.";
         std::cout << ErrorMsg << std::endl;
         log(ErrorMsg + " " + std::to_string(PORT) + "\nError code: " + std::to_string(errno));
         exit(1);
     }
-    if ((listen(sListen, SOMAXCONN)) != 0) // Places sListen socket in a state in which it is listening for an incoming connection. Note:SOMAXCONN = Socket Oustanding Max Connections, if we fail to listen on listening socket...
+    if ((listen(sListen, SOMAXCONN)) != 0)
     {
         string ErrorMsg = "Failed to listen on listening socket.";
         std::cout << ErrorMsg << std::endl;
@@ -144,25 +146,21 @@ void Server::GetAllAccounts()
 
 bool Server::SendString(int ID, string &_string)
 {
-    // Log the message being sent to the terminal
     std::cout << "Sending to client ID " << ID << ": " << _string << std::endl;
 
     int RetnCheck = send(Connections[ID], _string.c_str(), 512, 0); // Send string buffer
     if (RetnCheck < 0)                                              // If failed to send string buffer
     {
         std::cerr << "Failed to send message to client ID " << ID << std::endl;
-        return false; // Return false: Failed to send string buffer
+        return false;
     }
-    return true; // Return true: string successfully sent
+    return true;
 }
-
 bool Server::GetString(int ID, string &_string)
 {
     char buffer[512];
-    int RetnCheck = recv(Connections[ID], buffer, 512, 0); // nhan thong diep tu 1 ket noi voi ID cu the
+    int RetnCheck = recv(Connections[ID], buffer, 512, 0);
     _string = buffer;
-    // TO DO:
-    // when recv failed ,delete it!
     if (RetnCheck < 0)
         return false;
     cout << "get:" << endl
@@ -178,7 +176,7 @@ void Server::sendMessToClients(string Message)
     for (it = Connections.begin(); it != Connections.end(); ++it)
     {
         if (!SendString(it->first, Message))
-        { // Send message to connection at index i, if message fails to be sent...
+        {
             cout << "Failed to send message to client ID: " << it->first << endl;
             log("Failed to send message to client ID: " + std::to_string(it->first));
         }
@@ -187,14 +185,14 @@ void Server::sendMessToClients(string Message)
 
 bool Server::ListenForNewConnection()
 {
-    int newConnection = accept(sListen, (struct sockaddr *)&servaddr, &addrlen); // Accept a new connection
-    if (newConnection < 0)                                                       // If accepting the client connection failed
+    int newConnection = accept(sListen, (struct sockaddr *)&servaddr, &addrlen);
+    if (newConnection < 0)
     {
         cout << "Failed to accept the client's connection." << endl;
         log("Failed to accept the client's connection.");
         return false;
     }
-    else // If client connection properly accepted
+    else
     {
         cout << "Client Connected! ID:" << allID << endl;
         log("Client Connected! ID:" + std::to_string(allID));
@@ -203,20 +201,20 @@ bool Server::ListenForNewConnection()
         player newPlayer(new Player(allID));
         PlayerList.insert(pair<int, player>(allID, newPlayer));
         allID++;
-        TotalConnections += 1; // Incremenent total # of clients that have connected
+        TotalConnections += 1;
         return true;
     }
 }
 
 bool Server::Processinfo(int ID)
 {
-    string Message;              // string to store our message we received
-    if (!GetString(ID, Message)) // Get the chat message and store it in variable: Message
-        return false;            // If we do not properly get the chat message, return false
-                                 // Next we need to send the message out to each user
+    string Message;
+    if (!GetString(ID, Message))
+        return false;
+
     cJSON *json, *json_type;
     json = cJSON_Parse(Message.c_str());
-    json_type = cJSON_GetObjectItem(json, "Type"); // kiem tra loai thong diep
+    json_type = cJSON_GetObjectItem(json, "Type");
     if (json_type == NULL)
     {
         sendMessToClients(Message);
@@ -270,12 +268,11 @@ bool Server::Processinfo(int ID)
         }
         else if (type == "LOGIN")
         {
-            // su dung cSJON de lay thong tin user
             cJSON *user_UN_Json;
             user_UN_Json = cJSON_GetObjectItem(json, "UN");
             cJSON *user_PW_Json;
             user_PW_Json = cJSON_GetObjectItem(json, "PW");
-            // chuyen sang kieu QString de tich hop vao cac ham cua QT
+
             QString user_UN = user_UN_Json->valuestring;
             QString user_PW = user_PW_Json->valuestring;
             int flag = -1, isLogin = false;
@@ -285,7 +282,7 @@ bool Server::Processinfo(int ID)
                 {
                     if (accList[i].login)
                     {
-                        isLogin = true; // tai khoan da duoc dang nhap va khong can update lai trang thai dang nhap
+                        isLogin = true;
                         break;
                     }
                     flag = i;
@@ -339,15 +336,15 @@ bool Server::Processinfo(int ID)
         else if (type == "PLAY_AGAIN")
         {
             if (PlayerList[ID]->AreYouInGame() >= 0)
-            {                                                           // kiem tra xem nguoi choi co dang choi game nao khong
-                int HID = PlayerList[ID]->AreYouInGame();               // lay ID cua game dang choi
-                GameList[HID]->booltest();                              // debug
-                GameList[HID]->playAgain(ID);                           // player gui thong diep PlayAgain
-                int anotherPlayer = GameList[HID]->anotherPlayerID(ID); // lay ID cua doi thu
+            {
+                int HID = PlayerList[ID]->AreYouInGame();
+                GameList[HID]->booltest();
+                GameList[HID]->playAgain(ID);
+                int anotherPlayer = GameList[HID]->anotherPlayerID(ID);
                 if (anotherPlayer >= 0)
-                { // neu doi thu trong Game
+                {
                     if (GameList[HID]->can_Play_again())
-                    { // kiem tra xem co the choi lai khong
+                    {
                         if (systemSend(ID, "SEND_PLAY_AGAIN") && systemSend(anotherPlayer, "SEND_PLAY_AGAIN"))
                             GameList[HID]->reset_play_again();
                     }
@@ -360,11 +357,11 @@ bool Server::Processinfo(int ID)
         {
             if (PlayerList[ID]->AreYouInGame() >= 0)
             {
-                int HID = PlayerList[ID]->AreYouInGame();               // lay ID cua game dang choi
-                int anotherPlayer = GameList[HID]->anotherPlayerID(ID); // lay ID cua doi thu
+                int HID = PlayerList[ID]->AreYouInGame();
+                int anotherPlayer = GameList[HID]->anotherPlayerID(ID);
                 if (anotherPlayer >= 0)
-                {                                       // neu doi thu trong Game
-                    SendString(anotherPlayer, Message); // gui thong diep toi doi thu
+                {
+                    SendString(anotherPlayer, Message);
                 }
             }
         }
@@ -375,10 +372,8 @@ bool Server::Processinfo(int ID)
             int senderID = ID;
             QString senderName = OnlineUserList[senderID];
 
-            // Check if the sender is hosting a room
             if (PlayerList[senderID]->isOnlyInRoom())
             {
-                // Check if the recipient exists and is online
                 auto recipientIt = std::find_if(OnlineUserList.begin(), OnlineUserList.end(),
                                                 [&recipientName](const std::pair<int, QString> &pair)
                                                 {
@@ -388,33 +383,25 @@ bool Server::Processinfo(int ID)
                 if (recipientIt != OnlineUserList.end())
                 {
                     int recipientID = recipientIt->first;
-
-                    // Check if recipient is not in a game
                     if (PlayerList[recipientID]->isFree())
                     {
-                        // Send the invite to the recipient
                         systemSend(
                             recipientID, "INVITE_RECEIVED",
                             "Data", senderName.toStdString() + "#" + std::to_string(PlayerList[senderID]->AreYouInGame()));
-
-                        // Optionally acknowledge the sender
                         sendResponse(senderID, "INVITE_RES", StatusCode::OK);
                     }
                     else
                     {
-                        // Recipient is busy
                         sendResponse(senderID, "INVITE_RES", StatusCode::CONFLICT);
                     }
                 }
                 else
                 {
-                    // Recipient not found
                     sendResponse(senderID, "INVITE_RES", StatusCode::NOT_FOUND);
                 }
             }
             else
             {
-                // Sender is not hosting a room
                 sendResponse(senderID, "INVITE_RES", StatusCode::FORBIDDEN);
             }
         }
@@ -500,7 +487,7 @@ bool Server::Processinfo(int ID)
                 res += it->second.toStdString();
                 if (std::next(it) != OnlineUserList.end())
                 {
-                    res += ","; // Add a comma only if this is not the last element
+                    res += ",";
                 }
             }
             sendResponse(ID, "GET_ONLINE_USERS_RES", StatusCode::OK, "Data", res.c_str());
@@ -591,7 +578,6 @@ bool Server::Processinfo(int ID)
             cJSON *user = cJSON_GetObjectItem(json, "User");
             string username = user->valuestring;
 
-            // Check if there's already someone waiting for a match
             bool matchFound = false;
             for (auto &player : PlayerList)
             {
@@ -599,33 +585,26 @@ bool Server::Processinfo(int ID)
                 {
                     try
                     {
-                        // Match found! Create a game
                         int gameId = GameNum++;
                         onlineGame newGame(new Game(gameId, player.first,
                                                     OnlineUserList[player.first].toStdString(),
                                                     true, false)); // Set isRandomMatch to true
                         if (!newGame)
-                        {
-                            continue; 
-                        }
+                            continue;
 
-                        // Set up game and players safely
                         newGame->hostIs(player.second);
                         GameList[gameId] = newGame;
 
-                        // Set up both players properly with error checking
                         if (PlayerList.count(player.first) > 0 && PlayerList.count(ID) > 0)
                         {
                             player.second->JoininGame(gameId, newGame);
                             PlayerList[ID]->JoininGame(gameId, newGame);
                             newGame->Joinin(ID, PlayerList[ID], username);
 
-                            // Update player states
                             player.second->isWaitingForRandomMatch = false;
                             player.second->ishost = true;
                             PlayerList[ID]->isWaitingForRandomMatch = false;
 
-                            // Notify first player (white)
                             cJSON *response1 = cJSON_CreateObject();
                             if (response1)
                             {
@@ -642,7 +621,6 @@ bool Server::Processinfo(int ID)
                                 cJSON_Delete(response1);
                             }
 
-                            // Notify second player (black)
                             cJSON *response2 = cJSON_CreateObject();
                             if (response2)
                             {
@@ -665,7 +643,6 @@ bool Server::Processinfo(int ID)
                     catch (const std::exception &e)
                     {
                         std::cerr << "Error in random match: " << e.what() << std::endl;
-                        // Clean up any partial match state
                         if (PlayerList.count(player.first) > 0)
                         {
                             PlayerList[player.first]->isWaitingForRandomMatch = false;
@@ -681,7 +658,6 @@ bool Server::Processinfo(int ID)
 
             if (!matchFound)
             {
-                // No match found, set player as waiting
                 if (PlayerList.count(ID) > 0)
                 {
                     PlayerList[ID]->isWaitingForRandomMatch = true;
@@ -710,69 +686,62 @@ bool Server::Processinfo(int ID)
         }
         else if (type == "ELO_MATCH")
         {
-            cJSON* user = cJSON_GetObjectItem(json, "User");
+            cJSON *user = cJSON_GetObjectItem(json, "User");
             string username = user->valuestring;
             QString playerUsername = QString::fromStdString(username).split("#").at(0);
             int playerElo = getPlayerElo(playerUsername);
-            
-            // Check if there's already someone waiting for a match
+
             bool matchFound = false;
-            for (auto& player : PlayerList)
-            {   
+            for (auto &player : PlayerList)
+            {
                 if (player.second && player.second->isWaitingForEloMatch)
                 {
                     QString waitingPlayerUsername = OnlineUserList[player.first];
                     int waitingPlayerElo = getPlayerElo(waitingPlayerUsername);
-                    
-                    // Check if ELO tiers match
+
                     if (getEloTier(playerElo) == getEloTier(waitingPlayerElo))
                     {
-                        // Match found! Create a game
                         int gameId = GameNum++;
                         onlineGame newGame(new Game(gameId, player.first, OnlineUserList[player.first].toStdString(), false, true));
                         newGame->hostIs(player.second);
                         GameList[gameId] = newGame;
 
                         if (!newGame)
-                        {
-                            continue; 
-                        }
-                        
-                        // Set up the game
+                            continue;
+
                         if (PlayerList.count(player.first) > 0 && PlayerList.count(ID) > 0)
                         {
                             player.second->JoininGame(gameId, newGame);
                             PlayerList[ID]->JoininGame(gameId, newGame);
                             newGame->Joinin(ID, PlayerList[ID], username);
-                            
-                            // Reset waiting state
+
                             player.second->isWaitingForEloMatch = false;
                             player.second->ishost = true;
                             PlayerList[ID]->isWaitingForEloMatch = false;
-                            
-                            // Notify first player (white)
-                            cJSON* response1 = cJSON_CreateObject();
-                            if (response1){
+
+                            cJSON *response1 = cJSON_CreateObject();
+                            if (response1)
+                            {
                                 cJSON_AddStringToObject(response1, "Type", "ELO_MATCH_FOUND");
                                 cJSON_AddStringToObject(response1, "Opponent", username.c_str());
                                 cJSON_AddStringToObject(response1, "Side", "white");
-                                char* jsonStr1 = cJSON_Print(response1);
-                                if (jsonStr1){
+                                char *jsonStr1 = cJSON_Print(response1);
+                                if (jsonStr1)
+                                {
                                     string msg1(jsonStr1);
                                     SendString(player.first, msg1);
                                     free(jsonStr1);
                                 }
                                 cJSON_Delete(response1);
                             }
-                            
-                            // Notify second player (black)
-                            cJSON* response2 = cJSON_CreateObject();
+
+                            cJSON *response2 = cJSON_CreateObject();
                             if (response2)
                             {
                                 cJSON_AddStringToObject(response2, "Type", "ELO_MATCH_FOUND");
                                 cJSON_AddStringToObject(response2, "Opponent", OnlineUserList[player.first].toStdString().c_str());
                                 cJSON_AddStringToObject(response2, "Side", "black");
-                                char* jsonStr2 = cJSON_Print(response2);
+                                char *jsonStr2 = cJSON_Print(response2);
                                 if (jsonStr2)
                                 {
                                     string msg2(jsonStr2);
@@ -787,10 +756,11 @@ bool Server::Processinfo(int ID)
                     break;
                 }
             }
-            
+
             if (!matchFound)
             {
-                if (PlayerList.count(ID) > 0) PlayerList[ID]->isWaitingForEloMatch = true;
+                if (PlayerList.count(ID) > 0)
+                    PlayerList[ID]->isWaitingForEloMatch = true;
             }
         }
         else if (type == "CANCEL_ELO_MATCH")
@@ -898,7 +868,6 @@ bool Server::CreateGameList(string &_string)
     _string = cJSON_Print(json);
     cJSON_Delete(json);
     return true;
-    ;
 }
 
 bool Server::sendSystemInfo(int ID, string InfoType, string addKey, string addValue)
@@ -959,14 +928,9 @@ bool Server::systemSend(int ID, string type, string addKey, string addValue)
 
     char *JsonToSend = cJSON_Print(json);
     cJSON_Delete(json);
-    // cout << "send:" << endl
-    //      << JsonToSend << " To: " << ID << endl;
-    // log("send:" + std::string(JsonToSend) + " To: " + std::to_string(ID));
     string Send(JsonToSend);
     return SendString(ID, Send);
 }
-
-#include <vector>
 
 bool Server::sendResponse(int ID, string type, StatusCode status, string addKey, string addValue)
 {
@@ -975,7 +939,6 @@ bool Server::sendResponse(int ID, string type, StatusCode status, string addKey,
     cJSON_AddStringToObject(json, "Type", type.c_str());
     cJSON_AddStringToObject(json, "Status", str_status.c_str());
 
-    // Add additional key-value pairs from the arrays
     if (addKey != "")
     {
         cJSON_AddStringToObject(json, addKey.c_str(), addValue.c_str());
@@ -983,9 +946,6 @@ bool Server::sendResponse(int ID, string type, StatusCode status, string addKey,
 
     char *JsonToSend = cJSON_Print(json);
     cJSON_Delete(json);
-    // cout << "send:" << endl
-    //      << JsonToSend << " To: " << ID << endl;
-    // log("send:" + std::string(JsonToSend) + " To: " + std::to_string(ID));
     string Send(JsonToSend);
     return SendString(ID, Send);
 }
@@ -1018,40 +978,12 @@ void Server::ClientHandlerThread(int ID) // ID = the index in the SOCKET Connect
     std::lock_guard<std::mutex> lock(mutexLock);
     cout << "Lost connection to client ID: " << ID << endl;
     log("Lost connection to client ID: " + std::to_string(ID));
-    // close(serverptr->Connections[ID]);
-    // for (int i = 0; i < accList.size(); i++)
-    // {
-    //     if (accList[i].ID == OnlineUserList[ID])
-    //     {
-    //         accList[i].login = false;
-    //         break;
-    //     }
-    // }
-    // OnlineUserList.erase(ID);
-    // if (serverptr->PlayerList[ID]->AreYouInGame() >= 0)
-    // {
-    //     cout << "Delete its game room: " << endl;
-    //     log("Delete its game room: ");
-    //     int HID = serverptr->PlayerList[ID]->AreYouInGame();
-    //     int anotherPlayer = serverptr->GameList[HID]->anotherPlayerID(ID);
-    //     if (anotherPlayer >= 0 && serverptr->PlayerList[anotherPlayer])
-    //     {
-    //         serverptr->systemSend(anotherPlayer, "LOST_CONNECTION");
-    //         serverptr->PlayerList[anotherPlayer]->returnToLobby();
-    //     }
-    //     serverptr->GameList.erase(HID);
-    //     serverptr->sendGameList(-1);
-    // }
-    // serverptr->PlayerList.erase(ID);
-    // serverptr->Connections.erase(ID);
-    // serverptr->TotalConnections -= 1;
     if (serverptr->Connections.count(ID) > 0)
     {
         close(serverptr->Connections[ID]);
         serverptr->Connections.erase(ID);
     }
 
-    // Clean up online user
     if (OnlineUserList.count(ID) > 0)
     {
         QString username = OnlineUserList[ID];
@@ -1066,7 +998,6 @@ void Server::ClientHandlerThread(int ID) // ID = the index in the SOCKET Connect
         OnlineUserList.erase(ID);
     }
 
-    // Clean up game room
     if (serverptr->PlayerList.count(ID) > 0 &&
         serverptr->PlayerList[ID]->AreYouInGame() >= 0)
     {
@@ -1076,8 +1007,6 @@ void Server::ClientHandlerThread(int ID) // ID = the index in the SOCKET Connect
         {
             auto game = serverptr->GameList[gameID];
             int otherPlayerID = game->anotherPlayerID(ID);
-
-            // Notify other player
             if (otherPlayerID >= 0 &&
                 serverptr->PlayerList.count(otherPlayerID) > 0)
             {
@@ -1085,13 +1014,11 @@ void Server::ClientHandlerThread(int ID) // ID = the index in the SOCKET Connect
                 serverptr->PlayerList[otherPlayerID]->returnToLobby();
             }
 
-            // Remove game
             serverptr->GameList.erase(gameID);
             serverptr->sendGameList(-1);
         }
     }
 
-    // Clean up player
     if (serverptr->PlayerList.count(ID) > 0)
     {
         serverptr->PlayerList.erase(ID);
@@ -1163,40 +1090,46 @@ void Server::UpdateElo(std::string nameElo, int gain)
     connector.closeConnection();
 }
 
-int Server::getPlayerElo(const QString& username) {
-    for (const auto& acc : accList) {
-        if (acc.ID == username) {
+int Server::getPlayerElo(const QString &username)
+{
+    for (const auto &acc : accList)
+    {
+        if (acc.ID == username)
+        {
             return acc.elo;
         }
     }
     return 0;
 }
 
-bool Server::sendMatchNotification(int playerID, const std::string& side, 
-                                 const std::string& opponent, int opponentElo) 
+bool Server::sendMatchNotification(int playerID, const std::string &side, const std::string &opponent, int opponentElo)
 {
-    try {
-        cJSON* response = cJSON_CreateObject();
-        if (!response) return false;
-        
+    try
+    {
+        cJSON *response = cJSON_CreateObject();
+        if (!response)
+            return false;
+
         cJSON_AddStringToObject(response, "Type", "ELO_MATCH_FOUND");
         cJSON_AddStringToObject(response, "Opponent", opponent.c_str());
         cJSON_AddStringToObject(response, "Side", side.c_str());
         cJSON_AddNumberToObject(response, "OpponentElo", opponentElo);
-        
-        char* jsonStr = cJSON_Print(response);
-        if (!jsonStr) {
+
+        char *jsonStr = cJSON_Print(response);
+        if (!jsonStr)
+        {
             cJSON_Delete(response);
             return false;
         }
-        
+
         string msg(jsonStr);
         free(jsonStr);
         cJSON_Delete(response);
-        
+
         return SendString(playerID, msg);
-        
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         log("Error sending match notification: " + std::string(e.what()));
         return false;
     }

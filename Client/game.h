@@ -12,24 +12,19 @@
 #include "AI_files/possible_boxnpiece.h"
 #include "onlineGame/gamelobby.h"
 #include "onlineGame/onlinemove.h"
-// #include "tablepagination.h"
 
-
-class game:public QGraphicsView
+class game : public QGraphicsView
 {
     Q_OBJECT
 public:
     game(QWidget *parent = NULL);
-    //~game();
     void placeTheBoard();
     void addToScene(QGraphicsItem *item);
-    boardbox* getbox(int i, int j);
-    void pickUpPieces(Piece* P);
+    boardbox *getbox(int i, int j);
+    void pickUpPieces(Piece *P);
     void placePieces();
-
     void mouseMoveEvent(QMouseEvent *event);
-    //void mousePressEvent(QMouseEvent* event);
-    void mouseReleaseEvent(QMouseEvent* event);
+    void mouseReleaseEvent(QMouseEvent *event);
     int getTurn();
     void setTurn(int i);
     void changeTurn();
@@ -48,8 +43,6 @@ public:
     void addMove(QString);
 
 public slots:
-    // void startVSblackAI();
-    // void startVSwhiteAI();
     void start();
     void register_user();
     void mainmenu();
@@ -60,7 +53,7 @@ public slots:
     void playAsBlackOnline(QString, QString);
     void playAsWhiteOnline();
     void playAsBlackOnline();
-    void receiveMove(onlineMove*);
+    void receiveMove(onlineMove *);
     void Draw();
     void askDraw();
 
@@ -73,12 +66,12 @@ signals:
 private:
     gameLobby *Lobby = NULL;
     QGraphicsTextItem *check;
-    QGraphicsScene* gameScene;
+    QGraphicsScene *gameScene;
     gameboard *board;
     QPointF originalPos;
-    Piece* piece_to_placed;
-    int turn; // 1 =black, 0 = white
-    QGraphicsTextItem * turnDisplay;
+    Piece *piece_to_placed;
+    int turn;
+    QGraphicsTextItem *turnDisplay;
     int playerside = 0;
     void AIsMove();
     QListWidget *historyWidget = NULL;
@@ -86,4 +79,4 @@ private:
     QStringList currentMovePair;
 };
 
-#endif // GAME_H
+#endif

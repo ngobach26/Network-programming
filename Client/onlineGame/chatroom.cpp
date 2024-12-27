@@ -33,33 +33,23 @@ Chatroom::Chatroom(gameLobby *parent,Qt::WindowFlags f): QDialog(parent,f)
 void Chatroom::Showmessage(char* String)
 {
     QString msg= QString(QLatin1String(String));
-    //qDebug()<< msg;
     contentListWidget->addItem(msg);
 }
 
 
 void Chatroom::sendMessage()
 {
-    if(sendLineEdit->text()=="")
-        return ;
+    if(sendLineEdit->text()=="") return;
     QString msg= userNameLineEdit->text()+":"+sendLineEdit->text();
-    //qDebug()<< msg;
     if (msg.length() <= 256)
     {
         std::string user = userNameLineEdit->text().toStdString();
         std::string mess = msg.toStdString();
-        //qDebug()<< mess;
         bool send = Parent->sendMessage(mess,user);
         if (!send)
-        {
-            // send failed!
-        }
+        {}
     }
     else
-    {
-        //cant longer than 512!
-    }
+    {}
     sendLineEdit->clear();
 }
-
-

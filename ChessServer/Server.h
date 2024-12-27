@@ -6,8 +6,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <unistd.h> // read(), write(), close()
-
+#include <unistd.h>
 #include <string>
 #include <memory>
 #include <iostream>
@@ -19,8 +18,6 @@
 #include <QVector>
 #include "sqlconnector.h"
 #include <mutex>
-
-// typedef std::vector<std::vector<unique_ptr>> BOARD;
 
 using namespace std;
 
@@ -58,9 +55,10 @@ enum class StatusCode
     SERVICE_UNAVAIABLE = 503
 };
 
-enum class EloTier {
+enum class EloTier
+{
     BEGINNER = 0,     // 0-800
-    INTERMEDIATE = 1,  // 801-1600
+    INTERMEDIATE = 1, // 801-1600
     ADVANCED = 2,     // 1601-2000
     EXPERT = 3,       // 2001-2400
     MASTER = 4        // 2400+
@@ -80,12 +78,9 @@ private:
     bool CreateGameList(string &_string);
     bool sendSystemInfo(int ID, string InfoType, string addKey = "", string addValue = "");
     bool systemSend(int ID, string InfoType, string addKey = "", string addValue = "");
-    bool sendResponse(int ID, string type, StatusCode status,
-                      string addKeys = "",
-                      string addValues = "");
-    bool sendGameList(int ID); // if ID <0 ,means send gamelist to all clients
+    bool sendResponse(int ID, string type, StatusCode status, string addKeys = "", string addValues = "");
+    bool sendGameList(int ID);
     void deleteGame(int ID);
-
     void ClientHandlerThread(int arg);
     void GetAllAccounts();
     bool Signup(QString username, QString password, int elo);
@@ -94,22 +89,15 @@ private:
     void UpdateElo(string, int);
     QString GetTopRanking();
     EloTier getEloTier(int elo) const;
-    int getPlayerElo(const QString& username);
+    int getPlayerElo(const QString &username);
 
 private:
-    //-------------------------------------------
-    // online variables:
-    //-------------------------------------------
     unordered_map<int, int> Connections;
-    // SOCKET Connections[512];
     int TotalConnections = 0;
     int allID = 0;
-    struct sockaddr_in servaddr; // Address that we will bind our listening socket to
+    struct sockaddr_in servaddr;
     unsigned int addrlen = sizeof(servaddr);
     int sListen;
-    //---------------------------------------
-    // Logic variables:
-    //----------------------------------------
     int GameNum = 0;
     unordered_map<int, onlineGame> GameList;
     unordered_map<int, player> PlayerList;
@@ -118,9 +106,7 @@ private:
     QVector<Account> accList;
     QString accsFilePath;
     std::mutex mutexLock;
-
-    bool sendMatchNotification(int playerID, const std::string& side, 
-                             const std::string& opponent, int opponentElo);
+    bool sendMatchNotification(int playerID, const std::string &side, const std::string &opponent, int opponentElo);
 };
 
 static Server *serverptr;

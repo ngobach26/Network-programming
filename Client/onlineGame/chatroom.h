@@ -10,7 +10,6 @@
 #include "message.h"
 
 class gameLobby;
-
 class Chatroom: public QDialog
 {
     Q_OBJECT
@@ -29,13 +28,11 @@ public:
     friend class gameLobby;
     friend class ChessRoom;
 
-    //~Chatroom();
 private slots:
     void sendMessage();
-    //void CreateChessRoom();
+
 private:
     gameLobby* Parent;
-
 };
 
-#endif // CHATROOM_H
+#endif 

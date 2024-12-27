@@ -4,11 +4,11 @@
 #include <QSqlQuery>
 #include <QSqlError>
 
-class SqlConnector {
+class SqlConnector
+{
 public:
     SqlConnector();
     ~SqlConnector();
-
     bool openConnection();
     void closeConnection();
     QSqlQuery executeQuery(const QString &queryString);

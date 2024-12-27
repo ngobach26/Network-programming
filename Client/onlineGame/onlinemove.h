@@ -1,7 +1,6 @@
 #ifndef ONLINEMOVE_H
 #define ONLINEMOVE_H
 
-
 class onlineMove
 {
 public:
@@ -20,5 +19,4 @@ public:
     int Castling;
 };
 
-
-#endif // ONLINEMOVE_H
+#endif 

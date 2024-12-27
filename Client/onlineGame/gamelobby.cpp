@@ -1,11 +1,9 @@
 ﻿#include "gamelobby.h"
 #include "chatroom.h"
 #include "chessroom.h"
-
 #include <QMessageBox>
 #include <QDebug>
 #include <QInputDialog>
-
 #include <mutex>
 #include "game.h"
 #include <iostream>
@@ -18,11 +16,16 @@ static gameLobby *clientptr;
 bool gameLobby::is_opened = false;
 extern game *Game;
 
-EloTier getEloTier(int elo) {
-    if (elo <= 800) return EloTier::BEGINNER;
-    if (elo <= 1600) return EloTier::INTERMEDIATE;
-    if (elo <= 2000) return EloTier::ADVANCED;
-    if (elo <= 2400) return EloTier::EXPERT;
+EloTier getEloTier(int elo)
+{
+    if (elo <= 800)
+        return EloTier::BEGINNER;
+    if (elo <= 1600)
+        return EloTier::INTERMEDIATE;
+    if (elo <= 2000)
+        return EloTier::ADVANCED;
+    if (elo <= 2400)
+        return EloTier::EXPERT;
     return EloTier::MASTER;
 }
 
@@ -32,7 +35,6 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     OnlineScene = new QGraphicsScene();
     OnlineScene->setSceneRect(0, 0, 1400, 940);
     chRoom = nullptr;
-    // Making the view Full()
     setFixedSize(1400, 850);
     setScene(OnlineScene);
     clientptr = this;
@@ -56,29 +58,22 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     connect(this, &gameLobby::inviteResponse, this, &gameLobby::onInviteResponse);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    //--------------------------------------------------------
     QDialog dialog;
     dialog.setWindowTitle("Connect");
-    // Create two line edit widgets
     QLineEdit text1LineEdit;
     QLineEdit text2LineEdit;
     QLineEdit text3LineEdit;
     text1LineEdit.setText("127.0.0.1");
-    // Create a layout for the dialog
     QFormLayout layout(&dialog);
     layout.addRow("Server IP address:", &text1LineEdit);
     layout.addRow("User name:", &text2LineEdit);
     text3LineEdit.setEchoMode(QLineEdit::Password);
     layout.addRow("Password:", &text3LineEdit);
-    // Create an OK button
     QPushButton okButton("OK");
     layout.addRow(&okButton);
-    // Connect the OK button's clicked signal to close the dialog
     QObject::connect(&okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
-    // Show the dialog and wait for user input
     if (dialog.exec() == QDialog::Accepted)
     {
-        // Get the entered texts
         QString in_ip = text1LineEdit.text();
         QString in_id = text2LineEdit.text();
         QString in_pw = text3LineEdit.text();
@@ -102,19 +97,16 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
         connectError = true;
         return;
     }
-    //--------------------------------------------------------
     chRoom = new Chatroom(this);
-    t1 = std::thread(ClientThread); // Create the client thread that will receive any data that the server sends.
+    t1 = std::thread(ClientThread);
     titleText = new QGraphicsTextItem("Online Chess Lobby");
     QFont titleFont("arial", 50);
     titleText->setFont(titleFont);
     int xPos = width() / 2 - titleText->boundingRect().width() / 2;
     int yPos = 100;
     titleText->setPos(xPos, yPos);
-    // show!
     OnlineScene->addItem(titleText);
 
-    // info title
     QGraphicsTextItem *infoTitle = new QGraphicsTextItem("Logged in as: " + id_id + "\nElo: " + QString::number(id_elo));
     QFont infoFont("arial", 20);
     infoTitle->setFont(infoFont);
@@ -128,8 +120,7 @@ gameLobby::gameLobby(QWidget *parent) : QGraphicsView(parent)
     connect(playButton, SIGNAL(clicked()), this, SLOT(ReturnToMenu()));
     playButton->hide();
     OnlineScene->addItem(playButton);
-    // online users:
-    listView = new QListView(); // Initialize the listView member variable
+    listView = new QListView();
     onlineUserList = new QStandardItemModel();
     listView->setModel(onlineUserList);
     QGraphicsProxyWidget *proxyWidget = new QGraphicsProxyWidget();
@@ -167,15 +158,12 @@ gameLobby::~gameLobby()
 {
     gameLobby::is_opened = false;
 
-    // Clean up matching dialog
     if (matchingDialog)
     {
         matchingDialog->hide();
         matchingDialog->deleteLater();
         matchingDialog = nullptr;
     }
-
-    // Clean up threads
     if (t1.joinable())
     {
         t1.join();
@@ -184,14 +172,6 @@ gameLobby::~gameLobby()
     {
         t2.join();
     }
-
-    // Close connection if still open
-    // if (Connection != -1)
-    // {
-    //     ::close(Connection);
-    //     Connection = -1;
-    // }
-
     if (matchingDialog)
     {
         matchingDialog->deleteLater();
@@ -220,15 +200,14 @@ QGraphicsProxyWidget *gameLobby::createRankingWidget()
 {
     getTopRanking();
 
-    QTableWidget *tableWidget = new QTableWidget(0, 2); // 2 columns
+    QTableWidget *tableWidget = new QTableWidget(0, 2);
     QStringList headers;
     headers << "User ID" << "ELO";
     tableWidget->setHorizontalHeaderLabels(headers);
     tableWidget->setRowCount(rankingList.size());
     for (int row = 0; row < rankingList.size(); ++row)
     {
-        // Assuming each string is one row, split it for two columns
-        QStringList columns = rankingList.at(row).split("#"); // Adjust the delimiter as needed
+        QStringList columns = rankingList.at(row).split("#");
         for (int col = 0; col < columns.size(); ++col)
         {
             tableWidget->setItem(row, col, new QTableWidgetItem(columns.at(col)));
@@ -282,7 +261,6 @@ bool gameLobby::requestLogIn(QString id, QString pw)
                 type = json_type->valuestring;
                 status = json_status->valuestring;
             }
-
             if (type == "LOGIN_RES" && status == statusToString(StatusCode::OK))
             {
                 json_elo = cJSON_GetObjectItem(json, "elo");
@@ -329,9 +307,7 @@ bool gameLobby::CloseConnection()
 
 bool gameLobby::sendMove(int FromX, int FromY, int ToX, int ToY)
 {
-    // create Json
     cJSON *Move;
-    // if !Mesg
     Move = cJSON_CreateObject();
     cJSON_AddStringToObject(Move, "Type", "MOVE");
     cJSON_AddNumberToObject(Move, "FromX", FromX);
@@ -339,7 +315,7 @@ bool gameLobby::sendMove(int FromX, int FromY, int ToX, int ToY)
     cJSON_AddNumberToObject(Move, "ToX", ToX);
     cJSON_AddNumberToObject(Move, "ToY", ToY);
     cJSON_AddNumberToObject(Move, "Castling", -1);
-    char *JsonToSend = cJSON_Print(Move); // make the json as char*
+    char *JsonToSend = cJSON_Print(Move);
     int RetnCheck = send(Connection, JsonToSend, strlen(JsonToSend), NULL);
     if (RetnCheck < 0)
         return false;
@@ -348,9 +324,7 @@ bool gameLobby::sendMove(int FromX, int FromY, int ToX, int ToY)
 
 bool gameLobby::sendMove(int FromX, int FromY, int ToX, int ToY, int castling)
 {
-    // create Json
     cJSON *Move;
-    // if !Mesg
     Move = cJSON_CreateObject();
     cJSON_AddStringToObject(Move, "Type", "MOVE");
     cJSON_AddNumberToObject(Move, "FromX", FromX);
@@ -383,15 +357,11 @@ void gameLobby::Signal_TimeoutJoin()
 void gameLobby::I_wannaPlayAgain()
 {
     cJSON *Mesg;
-    // if !Mesg
     Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "PLAY_AGAIN");
-    char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
+    char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
     int RetnCheck = send(Connection, JsonToSend, strlen(JsonToSend), NULL);
-    // if (RetnCheck == SOCKET_ERROR)
-    // return false;
-    // return true;
 }
 
 void gameLobby::ReturnToMenu()
@@ -409,10 +379,9 @@ void gameLobby::ReturnToMenu()
 void gameLobby::CancelHost()
 {
     cJSON *Mesg;
-    // if !Mesg
     Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "CANCEL_HOST");
-    char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
+    char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL))
     {
@@ -429,7 +398,7 @@ void gameLobby::GetOnlineUser()
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "GET_ONLINE_USERS");
-    char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
+    char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) <= 0)
     {
@@ -446,7 +415,6 @@ void gameLobby::CreateAGameRoom()
             user = user.substr(0, 16);
         if (!CreateRoom(user))
         {
-            // send failed!
         }
     }
 }
@@ -464,7 +432,7 @@ bool gameLobby::backToLobby()
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "BACK_TO_LOBBY");
-    char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
+    char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
     int RetnCheck = send(Connection, JsonToSend, strlen(JsonToSend), NULL);
     if (RetnCheck < 0)
@@ -484,7 +452,6 @@ void gameLobby::closeEvent(QCloseEvent *event)
 {
     gameLobby::is_opened = false;
     if (inRooms)
-        // Game->mainmenu();
         Leave();
     exitLobby();
     chRoom->close();
@@ -499,14 +466,12 @@ void gameLobby::closeEvent(QCloseEvent *event)
 
 bool gameLobby::sendMessage(const std::string &message, const std::string &username)
 {
-
-    // create Json
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "Message");
     cJSON_AddStringToObject(Mesg, "User", username.c_str());
     cJSON_AddStringToObject(Mesg, "Message", message.c_str());
-    char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
+    char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
     int RetnCheck = send(Connection, JsonToSend, strlen(JsonToSend), NULL);
     if (RetnCheck < 0)
@@ -516,18 +481,13 @@ bool gameLobby::sendMessage(const std::string &message, const std::string &usern
 
 bool gameLobby::CreateRoom(const std::string &user)
 {
-    // test
-    // const char* JsonToSend= "{\"Type\":\"List_of_Rooms\", \"List\":[{\"name\":\"xiaohong\",\"id\":3,\"isplay\":0}]}";
-
     host = true;
     waitingForJoin();
-    // create Json
     cJSON *Mesg;
-    // if !Mesg
     Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "CREATEROOM");
     cJSON_AddStringToObject(Mesg, "User", user.c_str());
-    char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
+    char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
     int RetnCheck = send(Connection, JsonToSend, strlen(JsonToSend), NULL);
     if (RetnCheck < 0)
@@ -541,10 +501,7 @@ bool gameLobby::GetString()
     int RetnCheck = recv(Connection, buffer, sizeof(buffer), NULL);
     if (RetnCheck < 0)
         return false;
-    // analize JSON:
     cJSON *json, *json_type;
-    // if !json
-    // if !json_type
     QString receivedMessage = QString::fromUtf8(buffer);
     qDebug() << "Received:" << receivedMessage;
     json = cJSON_Parse(buffer);
@@ -591,7 +548,7 @@ bool gameLobby::GetString()
         QStringList onlineStr = QString::fromStdString(Data->valuestring).split(",");
         qDebug() << "Online Users:" << onlineStr;
 
-        emit updateOnlineUserList(onlineStr); // Emit signal to update list
+        emit updateOnlineUserList(onlineStr);
         cJSON_Delete(json);
     }
     else if (type == "Result")
@@ -606,8 +563,6 @@ bool gameLobby::GetString()
     else if (type == "CREATEROOM_RES")
     {
         clientptr->host = true;
-        // TO DO:
-        // waiting for others joing
     }
     else if (type == "JOIN_ROOM_RES")
     {
@@ -618,15 +573,12 @@ bool gameLobby::GetString()
         {
             clientptr->waiting = false;
             emit Full();
-            // when you are join a room, someone join it before you
         }
         else if (status == statusToString(StatusCode::OK))
         {
-            // this join room means you join the room successfully
             yourSide = 1;
             inRooms = true;
             clientptr->waiting = false;
-            // signal
             cJSON *Name_Info;
             Name_Info = cJSON_GetObjectItem(json, "Name_Info");
             QString nameInfo = Name_Info->valuestring;
@@ -640,7 +592,6 @@ bool gameLobby::GetString()
         yourSide = 0;
         inRooms = true;
         clientptr->waiting = false;
-        // signal
         cJSON *Name_Info;
         Name_Info = cJSON_GetObjectItem(json, "Name_Info");
         QString nameInfo = Name_Info->valuestring;
@@ -655,8 +606,6 @@ bool gameLobby::GetString()
             cJSON_Delete(json);
             return true;
         }
-
-        // Extract sender name and game ID from the "Data" field
         QString data = QString::fromStdString(dataJson->valuestring);
         QStringList parts = data.split("#");
         if (parts.size() != 2)
@@ -667,10 +616,7 @@ bool gameLobby::GetString()
 
         QString fromUser = parts[0];
         int gameID = parts[1].toInt();
-
-        // Emit the signal with both sender name and game ID
         emit inviteReceived(fromUser, gameID);
-
         cJSON_Delete(json);
     }
     else if (type == "INVITE_RES")
@@ -686,7 +632,6 @@ bool gameLobby::GetString()
 
         if (status == statusToString(StatusCode::OK))
         {
-            // Invite was sent successfully
             qDebug() << "Invite sent successfully.";
             emit inviteResponse("Invite sent successfully.", true);
         }
@@ -697,19 +642,16 @@ bool gameLobby::GetString()
         }
         else if (status == statusToString(StatusCode::NOT_FOUND))
         {
-            // Recipient not found
             qDebug() << "Recipient not found.";
             emit inviteResponse("Recipient not found.", false);
         }
         else if (status == statusToString(StatusCode::FORBIDDEN))
         {
-            // Sender is not hosting a room
             qDebug() << "You must be hosting a room to send an invite.";
             emit inviteResponse("You must be hosting a room to send an invite.", false);
         }
         else
         {
-            // Unknown status
             qDebug() << "Unexpected response status";
             emit inviteResponse("Unexpected response from server.", false);
         }
@@ -723,7 +665,6 @@ bool gameLobby::GetString()
         host = false;
         yourSide = -1;
 
-        // Use QTimer to delay the signal emission to ensure proper cleanup
         QTimer::singleShot(0, this, [this]()
                            { emit someoneLeave(); });
 
@@ -731,15 +672,11 @@ bool gameLobby::GetString()
     }
     else if (type == "LOST_CONNECTION")
     {
-        // should be the host lost or\ the guest lost
-        // You need use go back to the lobby here;
-        // emit someoneLeave();
         inRooms = false;
         waiting = false;
         host = false;
         yourSide = -1;
 
-        // Safely clean up matching dialog if it exists
         if (matchingDialog)
         {
             matchingDialog->hide();
@@ -747,7 +684,6 @@ bool gameLobby::GetString()
             matchingDialog = nullptr;
         }
 
-        // Use QTimer to delay the signal emission to ensure proper cleanup
         QTimer::singleShot(0, this, [this]()
                            { emit someoneLeave(); });
 
@@ -755,7 +691,7 @@ bool gameLobby::GetString()
     }
     if (type == "SEND_PLAY_AGAIN")
     {
-        if (yourSide == 1) // you are playing black
+        if (yourSide == 1)
             emit PlayBlackAgain();
         else
             emit PlayWhiteAgain();
@@ -786,12 +722,10 @@ bool gameLobby::GetString()
     else if (type == "RANDOM_MATCH_FOUND")
     {
         waiting = false;
-
-        // Safely clean up matching dialog
         if (matchingDialog)
         {
-            matchingDialog->hide();        // Hide before delete to prevent visual artifacts
-            matchingDialog->deleteLater(); // Use deleteLater instead of direct delete
+            matchingDialog->hide();
+            matchingDialog->deleteLater();
             matchingDialog = nullptr;
         }
         cJSON *opponent = cJSON_GetObjectItem(json, "Opponent");
@@ -807,10 +741,7 @@ bool gameLobby::GetString()
         QString opponentName = QString(opponent->valuestring);
         QString sideStr = QString(side->valuestring);
 
-        // Set game state before emitting signals
         inRooms = true;
-
-        // Initialize game with proper state
         if (sideStr == "white")
         {
             yourSide = 0;
@@ -819,32 +750,28 @@ bool gameLobby::GetString()
         else
         {
             yourSide = 1;
-            // emit PlayBlack(id_id + "#" + QString::number(id_elo), opponentName);
             emit PlayBlack(opponentName, id_id + "#" + QString::number(id_elo));
         }
-
-        // QTimer::singleShot(10, [this]() {
         emit ShowGame();
-        // });
         cJSON_Delete(json);
     }
     else if (type == "ELO_MATCH_FOUND")
     {
         waiting = false;
 
-        cJSON* opponent = cJSON_GetObjectItem(json, "Opponent");
-        cJSON* side = cJSON_GetObjectItem(json, "Side");
-        cJSON* opponentElo = cJSON_GetObjectItem(json, "OpponentElo");
-        
+        cJSON *opponent = cJSON_GetObjectItem(json, "Opponent");
+        cJSON *side = cJSON_GetObjectItem(json, "Side");
+        cJSON *opponentElo = cJSON_GetObjectItem(json, "OpponentElo");
+
         if (eloMatchingDialog)
         {
             eloMatchingDialog->close();
             eloMatchingDialog->deleteLater();
             eloMatchingDialog = nullptr;
         }
-        
+
         inRooms = true;
-        
+
         QString opponentName = QString::fromStdString(opponent->valuestring);
         QString sideStr = QString(side->valuestring);
         if (sideStr == "white")
@@ -873,7 +800,7 @@ void gameLobby::createRoomsList(cJSON *json)
     List = cJSON_GetObjectItem(json, "List");
     ChessRoom *NewChess;
     int array_size = cJSON_GetArraySize(List);
-    cJSON *chessroomINFO = NULL; // init cJSON
+    cJSON *chessroomINFO = NULL;
 
     if (array_size == 0)
     {
@@ -883,8 +810,6 @@ void gameLobby::createRoomsList(cJSON *json)
 
     cJSON_ArrayForEach(chessroomINFO, List)
     {
-
-        // when the thread is doing this, it should be locked.
         bool playing = false;
         cJSON *Name = cJSON_GetObjectItem(chessroomINFO, "name");
         cJSON *ID = cJSON_GetObjectItem(chessroomINFO, "id");
@@ -904,19 +829,11 @@ void gameLobby::createRoomsList(cJSON *json)
         chessroomS.append(NewChess);
     }
     cJSON_Delete(json);
-
-    // create signal!
-    // ------------------------
-    // This is very important
-    //----------------------------------
-
-    // emit updateRooms();
     showRooms();
 }
 
 void gameLobby::showRooms()
 {
-    // OnlineScene->clear(); //badass here
     LobbySUI();
     waitingForJoin();
 
@@ -990,8 +907,6 @@ void gameLobby::hostWindow_show()
     CancelBotton->show();
 }
 
-// this is sooooo stupid, how can you make this stupid idea>??>??????
-
 void gameLobby::sendJointRequest(int ID)
 {
     if (!inRooms && !waiting && !host)
@@ -1002,40 +917,32 @@ void gameLobby::sendJointRequest(int ID)
 
 void gameLobby::SendRequestForJoining(int ID)
 {
-    // create Json
     cJSON *Request;
-    // if !Request
     Request = cJSON_CreateObject();
     cJSON_AddStringToObject(Request, "Type", "JOIN_ROOM");
     cJSON_AddStringToObject(Request, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
     cJSON_AddNumberToObject(Request, "ID", ID);
 
-    char *JsonToSend = cJSON_Print(Request); // make the json as char*
+    char *JsonToSend = cJSON_Print(Request);
     cJSON_Delete(Request);
     int RetnCheck = send(Connection, JsonToSend, strlen(JsonToSend), NULL);
     if (RetnCheck < 0)
-    {
-        // TO DO: failed send;
         return;
-    }
     t2 = std::thread(WaitforResponseThread);
 }
 
 void gameLobby::sendInvite(const QString &username)
 {
-    static bool isInviteInProgress = false; // Prevent multiple invites simultaneously
-
+    static bool isInviteInProgress = false;
     if (isInviteInProgress)
-        return; // Avoid spamming invites
+        return;
     isInviteInProgress = true;
     qDebug() << "Sending invite to user:" << username;
 
-    // Create JSON object for the invite message
     cJSON *inviteMessage = cJSON_CreateObject();
     cJSON_AddStringToObject(inviteMessage, "Type", "INVITE");
     cJSON_AddStringToObject(inviteMessage, "User", username.toStdString().c_str());
 
-    // Convert JSON object to string
     char *jsonToSend = cJSON_Print(inviteMessage);
     cJSON_Delete(inviteMessage);
 
@@ -1046,7 +953,6 @@ void gameLobby::sendInvite(const QString &username)
         return;
     }
 
-    // Send the message to the server
     if (send(Connection, jsonToSend, strlen(jsonToSend), 0) == -1)
     {
         qDebug() << "Failed to send invite message.";
@@ -1056,10 +962,8 @@ void gameLobby::sendInvite(const QString &username)
         qDebug() << "Invite message sent to server successfully.";
     }
 
-    // Free the dynamically allocated memory
     free(jsonToSend);
 
-    // Reset the flag after 1 second
     QTimer::singleShot(1000, this, [&]()
                        { isInviteInProgress = false; });
 }
@@ -1069,20 +973,17 @@ void gameLobby::exitLobby()
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "EXIT");
-    char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
+    char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
     send(Connection, JsonToSend, strlen(JsonToSend), NULL);
 }
 
 void gameLobby::WaitforResponseThread()
 {
-    // this is thread safe
     clientptr->waiting = true;
     QThread::msleep(4000);
     if (clientptr->waiting)
     {
-        // Join in Room failed!
-        // TO DO: add something here!
         qDebug() << "Join Room time out!";
         clientptr->Signal_TimeoutJoin();
         clientptr->waiting = false;
@@ -1106,8 +1007,6 @@ void gameLobby::Leave()
         matchingDialog->deleteLater();
         matchingDialog = nullptr;
     }
-    // Game->hide();
-    // Game->mainmenu();
     cJSON *Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "LEAVE");
     char *JsonToSend = cJSON_Print(Mesg);
@@ -1146,17 +1045,14 @@ void gameLobby::ClientThread()
 {
     while (true)
     {
-        // qDebug() << "Thread start.";
         if (!is_opened)
             return;
         if (!clientptr->GetString())
             break;
     }
-    // qDebug() << "Lost connection to the server.";
-    if (clientptr->CloseConnection()) // Try to close socket connection..., If connection socket was closed properly
+    if (clientptr->CloseConnection())
         clientptr->Signal_socketClosed();
-    else // If connection socket was not closed properly for some reason from our function
-        clientptr->Signal_socketClosedfailed();
+    clientptr->Signal_socketClosedfailed();
 }
 
 void gameLobby::EndGame(int color)
@@ -1165,7 +1061,7 @@ void gameLobby::EndGame(int color)
     Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "EndGame");
     cJSON_AddNumberToObject(Mesg, "Winner", color);
-    char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
+    char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
     qDebug() << JsonToSend;
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL))
@@ -1178,7 +1074,7 @@ void gameLobby::I_wannaDraw()
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "ASK_DRAW");
-    char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
+    char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
     qDebug() << JsonToSend;
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL))
@@ -1193,7 +1089,6 @@ void gameLobby::handleInvite(const QString &fromUser, int gameID)
     msgBox.setText(fromUser + " has invited you to play a game. Game ID: " + QString::number(gameID));
     QPushButton *acceptButton = msgBox.addButton("Accept", QMessageBox::AcceptRole);
     QPushButton *declineButton = msgBox.addButton("Decline", QMessageBox::RejectRole);
-
     msgBox.exec();
 
     if (msgBox.clickedButton() == acceptButton)
@@ -1203,7 +1098,6 @@ void gameLobby::handleInvite(const QString &fromUser, int gameID)
     }
     else if (msgBox.clickedButton() == declineButton)
     {
-        // Send response back to the server for declining the invite
         cJSON *response = cJSON_CreateObject();
         cJSON_AddStringToObject(response, "Type", "INVITE_RESPONSE");
         cJSON_AddStringToObject(response, "Response", "DECLINE");
@@ -1226,11 +1120,9 @@ void gameLobby::handleOnlineUserList(const QStringList &users)
         QWidget *userWidget = new QWidget();
         QHBoxLayout *layout = new QHBoxLayout(userWidget);
         layout->setContentsMargins(0, 0, 0, 0);
-
         QLabel *userLabel = new QLabel(username);
         layout->addWidget(userLabel);
 
-        // Only add the "Invite" button if the username is not the current user's ID
         if (username != id_id)
         {
             QPushButton *inviteButton = new QPushButton("Invite");
@@ -1264,10 +1156,9 @@ void gameLobby::sendDraw(int reply)
     cJSON *Mesg;
     Mesg = cJSON_CreateObject();
     cJSON_AddStringToObject(Mesg, "Type", "DRAW");
-
     cJSON_AddNumberToObject(Mesg, "Confirm", reply);
 
-    char *JsonToSend = cJSON_Print(Mesg); // make the json as char*
+    char *JsonToSend = cJSON_Print(Mesg);
     cJSON_Delete(Mesg);
     qDebug() << JsonToSend;
     if (send(Connection, JsonToSend, strlen(JsonToSend), NULL))
@@ -1278,7 +1169,6 @@ void gameLobby::MatchRandomPlayer()
 {
     if (!host && !waiting && !inRooms)
     {
-        // Create and show waiting dialog
         matchingDialog = new QDialog(this);
         matchingDialog->setWindowTitle("Finding Match");
 
@@ -1291,7 +1181,6 @@ void gameLobby::MatchRandomPlayer()
         connect(cancelBtn, &QPushButton::clicked, this, &gameLobby::CancelRandomMatch);
         layout->addWidget(cancelBtn);
 
-        // Send random match request to server
         cJSON *Mesg = cJSON_CreateObject();
         cJSON_AddStringToObject(Mesg, "Type", "RANDOM_MATCH");
         cJSON_AddStringToObject(Mesg, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
@@ -1362,44 +1251,53 @@ void gameLobby::MatchEloPlayer()
 {
     if (!host && !waiting && !inRooms)
     {
-        // Create and show waiting dialog
         eloMatchingDialog = new QDialog(this);
         eloMatchingDialog->setWindowTitle("Finding ELO Match");
-        
-        QVBoxLayout* layout = new QVBoxLayout(eloMatchingDialog);
-        
+
+        QVBoxLayout *layout = new QVBoxLayout(eloMatchingDialog);
+
         QString tierName;
         EloTier tier = getEloTier(id_elo);
-        switch(tier) {
-            case EloTier::BEGINNER: tierName = "Beginner (0-800)"; break;
-            case EloTier::INTERMEDIATE: tierName = "Intermediate (801-1600)"; break;
-            case EloTier::ADVANCED: tierName = "Advanced (1601-2000)"; break;
-            case EloTier::EXPERT: tierName = "Expert (2001-2400)"; break;
-            case EloTier::MASTER: tierName = "Master (2400+)"; break;
+        switch (tier)
+        {
+        case EloTier::BEGINNER:
+            tierName = "Beginner (0-800)";
+            break;
+        case EloTier::INTERMEDIATE:
+            tierName = "Intermediate (801-1600)";
+            break;
+        case EloTier::ADVANCED:
+            tierName = "Advanced (1601-2000)";
+            break;
+        case EloTier::EXPERT:
+            tierName = "Expert (2001-2400)";
+            break;
+        case EloTier::MASTER:
+            tierName = "Master (2400+)";
+            break;
         }
-        
-        QLabel* waitLabel = new QLabel(QString("Finding opponent in %1 tier...\nYour ELO: %2").arg(tierName).arg(id_elo));
+
+        QLabel *waitLabel = new QLabel(QString("Finding opponent in %1 tier...\nYour ELO: %2").arg(tierName).arg(id_elo));
         layout->addWidget(waitLabel);
-        
-        QPushButton* cancelBtn = new QPushButton("Cancel");
+
+        QPushButton *cancelBtn = new QPushButton("Cancel");
         connect(cancelBtn, &QPushButton::clicked, this, &gameLobby::CancelEloMatch);
         layout->addWidget(cancelBtn);
-        
-        // Send ELO match request
-        cJSON* Mesg = cJSON_CreateObject();
+
+        cJSON *Mesg = cJSON_CreateObject();
         cJSON_AddStringToObject(Mesg, "Type", "ELO_MATCH");
         cJSON_AddStringToObject(Mesg, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
-        
-        char* JsonToSend = cJSON_Print(Mesg);
+
+        char *JsonToSend = cJSON_Print(Mesg);
         cJSON_Delete(Mesg);
-        
+
         if (send(Connection, JsonToSend, strlen(JsonToSend), NULL) < 0)
         {
             QMessageBox::critical(NULL, "Error", "Failed to send match request!");
             delete eloMatchingDialog;
             return;
         }
-        
+
         waiting = true;
         eloMatchingDialog->show();
     }
@@ -1411,26 +1309,26 @@ void gameLobby::CancelEloMatch()
     {
         try
         {
-            cJSON* Mesg = cJSON_CreateObject();
+            cJSON *Mesg = cJSON_CreateObject();
             if (!Mesg)
             {
-                    throw std::runtime_error("Failed to create JSON object");
+                throw std::runtime_error("Failed to create JSON object");
             }
             cJSON_AddStringToObject(Mesg, "Type", "CANCEL_ELO_MATCH");
             cJSON_AddStringToObject(Mesg, "User", (id_id + "#" + QString::number(id_elo)).toStdString().c_str());
 
-            char* JsonToSend = cJSON_Print(Mesg);
+            char *JsonToSend = cJSON_Print(Mesg);
             if (!JsonToSend)
             {
                 cJSON_Delete(Mesg);
                 throw std::runtime_error("Failed to print JSON");
             }
-            
+
             send(Connection, JsonToSend, strlen(JsonToSend), NULL);
-            
+
             free(JsonToSend);
             cJSON_Delete(Mesg);
-            
+
             waiting = false;
             if (eloMatchingDialog)
             {

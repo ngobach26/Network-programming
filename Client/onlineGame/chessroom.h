@@ -12,7 +12,6 @@ class ChessRoom:public QObject,  public QGraphicsPixmapItem
 public:
     ChessRoom(gameLobby* lobby, QString Name, int ID, bool isplay, QGraphicsItem* parent=NULL);
     void player2(QString player2name);
-    //~ChessRoom();
     void mousePressEvent(QGraphicsSceneMouseEvent *event);
 
 signals:
@@ -30,8 +29,4 @@ private:
     QGraphicsTextItem* P2Name = NULL;
 };
 
-
-
-#endif // CHESSROOM_H
-
-
+#endif 

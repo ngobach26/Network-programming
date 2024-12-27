@@ -15,32 +15,31 @@ ChessRoom::ChessRoom(gameLobby *Lobby, QString Name, int ID, bool isplay, QGraph
     {
         setWaitingImage();
     }
-    HostsName = new QGraphicsTextItem(name,this); // button is the parent of this text
-    int xPos = 200 - HostsName->boundingRect().width()/2;
+    HostsName = new QGraphicsTextItem(name, this);
+    int xPos = 200 - HostsName->boundingRect().width() / 2;
     int yPos = 160;
-    HostsName->setPos(xPos,yPos);
+    HostsName->setPos(xPos, yPos);
 
-    qDebug() << "ID is: " <<ID<<" name is: "<<Name;
+    qDebug() << "ID is: " << ID << " name is: " << Name;
 }
 
 void ChessRoom::player2(QString player2name)
 {
-    if  (isPlaying)
+    if (isPlaying)
     {
         this->p2name = player2name;
-        P2Name = new QGraphicsTextItem(p2name,this); // button is the parent of this text
+        P2Name = new QGraphicsTextItem(p2name, this);
         int xPos = 15;
         int yPos = 160;
-        P2Name->setPos(xPos,yPos);
+        P2Name->setPos(xPos, yPos);
     }
 }
 
 void ChessRoom::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
     if (!isPlaying)
-       emit clicked(this->ID);
+        emit clicked(this->ID);
 }
-
 
 void ChessRoom::setWaitingImage()
 {
